@@ -1,0 +1,224 @@
+@import "tailwindcss";
+
+:root {
+  --ink: #0b2a2b;
+  --ink-soft: #1a4547;
+  --paper: #f3f6f1;
+  --paper-deep: #e4ebe0;
+  --line: #c5d2c4;
+  --accent: #1f7a5c;
+  --accent-deep: #145c44;
+  --warn: #9a4b1f;
+  --good: #1f7a5c;
+  --bad: #8b2e2e;
+  --shadow: 0 18px 50px rgba(11, 42, 43, 0.08);
+  --background: var(--paper);
+  --foreground: var(--ink);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-cairo);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100%;
+  color: var(--ink);
+  background:
+    radial-gradient(1200px 500px at 100% -10%, rgba(31, 122, 92, 0.12), transparent 55%),
+    radial-gradient(900px 420px at -10% 20%, rgba(154, 75, 31, 0.08), transparent 50%),
+    linear-gradient(180deg, #f7faf5 0%, var(--paper) 40%, #eef3ec 100%);
+  font-family: var(--font-cairo), "Segoe UI", Tahoma, sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.app-shell {
+  width: min(1120px, calc(100% - 2rem));
+  margin-inline: auto;
+  padding-block: 1.25rem 3rem;
+}
+
+.brand-mark {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-size: clamp(1.8rem, 4vw, 2.4rem);
+  color: var(--ink);
+}
+
+.panel {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(8px);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border: 0;
+  border-radius: 12px;
+  padding: 0.7rem 1.1rem;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease, opacity 0.15s ease;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.btn:active {
+  transform: translateY(0);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: var(--accent-deep);
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+
+.btn-danger {
+  background: #f8e8e8;
+  color: var(--bad);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.field label {
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+}
+
+.field input,
+.field select,
+.field textarea {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 12px;
+  padding: 0.7rem 0.85rem;
+  color: var(--ink);
+}
+
+.field textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+@media (max-width: 900px) {
+  .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.stat-card {
+  padding: 1rem 1.05rem;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fff, #f5f8f3);
+  border: 1px solid var(--line);
+}
+
+.stat-card .label {
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+  margin-bottom: 0.35rem;
+}
+
+.stat-card .value {
+  font-size: clamp(1.15rem, 2.4vw, 1.45rem);
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.tab {
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 0.55rem 0.9rem;
+  border-radius: 999px;
+  cursor: pointer;
+  color: var(--ink-soft);
+}
+
+.tab[aria-selected="true"] {
+  background: #fff;
+  border-color: var(--line);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.fade-in {
+  animation: fadeUp 0.35s ease both;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hero-brand {
+  animation: brandIn 0.55s ease both;
+}
+
+@keyframes brandIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
