@@ -10,8 +10,10 @@ import {
 } from "react";
 import { createSeedState, DEMO_PASSWORD } from "./seed";
 import type {
+  Agreement,
   AppState,
   Category,
+  ContractType,
   GalleryPhoto,
   Person,
   Project,
@@ -20,7 +22,7 @@ import type {
 } from "./types";
 import { newId } from "./ids";
 
-const STORAGE_KEY = "daftar.v1";
+const STORAGE_KEY = "daftar.v2";
 
 const CATEGORY_COLORS = [
   "#e67e22",
@@ -42,7 +44,10 @@ type StoreApi = {
     name: string;
     address?: string;
     clientId: string;
+    status: ProjectStatus;
+    contractType: ContractType;
     contractTotal: number;
+    supervisionPct: number;
   }) => string;
   updateProject: (
     id: string,
@@ -51,9 +56,18 @@ type StoreApi = {
       address?: string;
       clientId?: string;
       status?: ProjectStatus;
+      contractType?: ContractType;
       contractTotal?: number;
+      supervisionPct?: number;
     },
   ) => void;
+  addAgreement: (input: {
+    projectId: string;
+    contractorId: string;
+    amount: number;
+    notes?: string;
+    attachmentDataUrl?: string;
+  }) => string;
   addClient: (input: { name: string; phone?: string }) => string;
   addContractor: (input: { name: string; phone?: string }) => string;
   addSupplier: (input: { name: string; phone?: string }) => string;
@@ -81,7 +95,19 @@ function loadState(): AppState {
     if (!raw) return createSeedState();
     const parsed = JSON.parse(raw) as AppState;
     if (!parsed?.projects?.length) return createSeedState();
-    return { ...createSeedState(), ...parsed, unlocked: !!parsed.unlocked };
+    const seed = createSeedState();
+    return {
+      ...seed,
+      ...parsed,
+      unlocked: !!parsed.unlocked,
+      agreements: parsed.agreements || [],
+      projects: parsed.projects.map((project) => ({
+        ...project,
+        contractType: project.contractType || "fixed",
+        supervisionPct: project.supervisionPct || 0,
+        contractTotal: project.contractTotal || 0,
+      })),
+    };
   } catch {
     return createSeedState();
   }
@@ -129,8 +155,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           name: input.name.trim(),
           address: input.address?.trim() || undefined,
           clientId: input.clientId,
-          status: "active",
+          status: input.status,
+          contractType: input.contractType,
           contractTotal: input.contractTotal,
+          supervisionPct: input.supervisionPct,
           createdAt: new Date().toISOString(),
         };
         setState((prev) => ({
@@ -155,6 +183,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             };
           }),
         }));
+      },
+      addAgreement: (input) => {
+        const id = newId("agr");
+        const agreement: Agreement = {
+          id,
+          projectId: input.projectId,
+          contractorId: input.contractorId,
+          amount: input.amount,
+          notes: input.notes?.trim() || undefined,
+          attachmentDataUrl: input.attachmentDataUrl,
+          createdAt: new Date().toISOString(),
+        };
+        setState((prev) => ({
+          ...prev,
+          agreements: [agreement, ...(prev.agreements || [])],
+        }));
+        return id;
       },
       addClient: (input) => {
         const id = newId("cli");

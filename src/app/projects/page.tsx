@@ -4,52 +4,191 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
-import { projectTotals, statusLabel } from "@/lib/logic";
+import { contractTypeLabel, projectMoney, statusLabel } from "@/lib/logic";
 import { formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
+import type { ContractType, ProjectStatus } from "@/lib/types";
+
+type Step = "list" | "basics" | "client" | "status" | "budget";
+
+const statuses: ProjectStatus[] = [
+  "not_started",
+  "active",
+  "paused",
+  "done",
+  "cancelled",
+];
+
+const contractTypes: ContractType[] = ["contract", "fixed", "percent"];
 
 export default function ProjectsPage() {
   const { state, addProject, addClient } = useStore();
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<Step>("list");
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
-  const [clientName, setClientName] = useState("");
-  const [clientId, setClientId] = useState(state.clients[0]?.id || "");
+  const [clientId, setClientId] = useState("");
+  const [newClient, setNewClient] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [status, setStatus] = useState<ProjectStatus>("not_started");
+  const [contractType, setContractType] = useState<ContractType>("fixed");
   const [contractTotal, setContractTotal] = useState("");
+  const [supervisionPct, setSupervisionPct] = useState("12");
 
-  function onCreate(e: FormEvent) {
+  function reset() {
+    setStep("list");
+    setName("");
+    setAddress("");
+    setClientId("");
+    setNewClient("");
+    setNewPhone("");
+    setStatus("not_started");
+    setContractType("fixed");
+    setContractTotal("");
+    setSupervisionPct("12");
+  }
+
+  function onSave(e: FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
     let cid = clientId;
-    if (!cid && clientName.trim()) {
-      cid = addClient({ name: clientName });
+    if (!cid && newClient.trim()) {
+      cid = addClient({ name: newClient, phone: newPhone });
     }
-    if (!cid) return;
+    if (!cid) {
+      setStep("client");
+      return;
+    }
     const id = addProject({
       name,
       address,
       clientId: cid,
+      status,
+      contractType,
       contractTotal: Number(contractTotal) || 0,
+      supervisionPct: Number(supervisionPct) || 0,
     });
-    setOpen(false);
+    reset();
     router.push(`/project/?id=${encodeURIComponent(id)}`);
   }
 
-  if (open) {
+  if (step === "client") {
+    return (
+      <AppShell title="اختر العميل">
+        <div className="space-y-2">
+          {state.clients.map((client) => (
+            <button
+              key={client.id}
+              type="button"
+              className={`card flex w-full items-center justify-between text-right ${
+                clientId === client.id ? "border-[var(--brand)]" : ""
+              }`}
+              onClick={() => {
+                setClientId(client.id);
+                setNewClient("");
+                setStep("basics");
+              }}
+            >
+              <span
+                className={`h-5 w-5 rounded-full border ${
+                  clientId === client.id
+                    ? "border-[var(--brand)] bg-[var(--brand)]"
+                    : "border-stone-300"
+                }`}
+              />
+              <span>
+                <span className="block font-bold">{client.name}</span>
+                {client.phone ? (
+                  <span className="text-sm text-stone-500" dir="ltr">
+                    {client.phone}
+                  </span>
+                ) : null}
+              </span>
+            </button>
+          ))}
+          <form
+            className="card space-y-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!newClient.trim()) return;
+              setClientId("");
+              setStep("basics");
+            }}
+          >
+            <p className="text-sm font-bold">عميل جديد</p>
+            <input
+              className="input"
+              placeholder="اسم العميل"
+              value={newClient}
+              onChange={(e) => setNewClient(e.target.value)}
+            />
+            <input
+              className="input"
+              placeholder="الموبايل"
+              value={newPhone}
+              onChange={(e) => setNewPhone(e.target.value)}
+            />
+            <button type="submit" className="btn btn-primary w-full">
+              اختيار العميل ده
+            </button>
+          </form>
+          <button type="button" className="btn btn-secondary w-full" onClick={() => setStep("basics")}>
+            رجوع
+          </button>
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (step === "status") {
+    return (
+      <AppShell title="حالة المشروع">
+        <div className="space-y-2">
+          {statuses.map((item) => (
+            <button
+              key={item}
+              type="button"
+              className="card flex w-full items-center justify-between"
+              onClick={() => {
+                setStatus(item);
+                setStep("basics");
+              }}
+            >
+              <span
+                className={`h-5 w-5 rounded-full border ${
+                  status === item ? "border-[var(--brand)] bg-[var(--brand)]" : "border-stone-300"
+                }`}
+              />
+              <span className="font-bold">{statusLabel(item)}</span>
+            </button>
+          ))}
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (step === "basics") {
+    const client = state.clients.find((item) => item.id === clientId);
     return (
       <AppShell title="مشروع جديد">
-        <form onSubmit={onCreate} className="space-y-3">
-          <p className="text-sm text-stone-600">
-            سجّل المشروع، وبعدين تقدر تضيف الدفعات والمصروف.
-          </p>
+        <div className="mb-4 text-center">
+          <h2 className="text-xl font-black">بدأت في مشروع جديد؟</h2>
+          <p className="mt-1 text-sm text-stone-600">سجّل بياناته</p>
+        </div>
+        <div className="mb-3 flex gap-2 text-sm">
+          <span className="rounded-full bg-white px-3 py-1 font-bold text-[var(--brand)]">
+            الأساسيات
+          </span>
+          <button type="button" className="px-3 py-1 text-stone-500" onClick={() => setStep("budget")}>
+            الميزانية
+          </button>
+        </div>
+        <div className="space-y-3">
           <input
             className="input"
             placeholder="اسم المشروع"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            required
-            autoFocus
           />
           <input
             className="input"
@@ -57,45 +196,87 @@ export default function ProjectsPage() {
             value={address}
             onChange={(e) => setAddress(e.target.value)}
           />
-          <select
-            className="input"
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
-          >
-            <option value="">عميل جديد</option>
-            {state.clients.map((client) => (
-              <option key={client.id} value={client.id}>
-                {client.name}
-              </option>
+          <button type="button" className="input text-right" onClick={() => setStep("client")}>
+            {client?.name || newClient || "اختر العميل"}
+          </button>
+          <button type="button" className="input flex items-center justify-between" onClick={() => setStep("status")}>
+            <span className="text-stone-500">حالة المشروع</span>
+            <span className="font-bold">{statusLabel(status)}</span>
+          </button>
+          <button type="button" className="btn btn-primary w-full" onClick={() => setStep("budget")}>
+            التالي
+          </button>
+          <button type="button" className="btn btn-secondary w-full" onClick={reset}>
+            إلغاء
+          </button>
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (step === "budget") {
+    return (
+      <AppShell title="مشروع جديد">
+        <div className="mb-4 text-center">
+          <h2 className="text-xl font-black">بدأت في مشروع جديد؟</h2>
+          <p className="mt-1 text-sm text-stone-600">تعاقد بالطريقة اللي تعجبك</p>
+        </div>
+        <div className="mb-3 flex gap-2 text-sm">
+          <button type="button" className="px-3 py-1 text-stone-500" onClick={() => setStep("basics")}>
+            الأساسيات
+          </button>
+          <span className="rounded-full bg-white px-3 py-1 font-bold text-[var(--brand)]">
+            الميزانية
+          </span>
+        </div>
+        <form onSubmit={onSave} className="space-y-3">
+          <p className="text-sm font-bold">نوع التعاقد</p>
+          <div className="grid grid-cols-3 gap-2">
+            {contractTypes.map((item) => (
+              <button
+                key={item}
+                type="button"
+                className={`rounded-2xl border px-2 py-3 text-sm font-bold ${
+                  contractType === item
+                    ? "border-[var(--brand)] bg-[#f3e6dc] text-[var(--brand-dark)]"
+                    : "border-stone-200 bg-white"
+                }`}
+                onClick={() => setContractType(item)}
+              >
+                {contractTypeLabel(item)}
+              </button>
             ))}
-          </select>
-          {!clientId ? (
+          </div>
+          <label className="block text-sm font-semibold">
+            الميزانية الإجمالية
             <input
-              className="input"
-              placeholder="اسم العميل الجديد"
-              value={clientName}
-              onChange={(e) => setClientName(e.target.value)}
-              required
+              className="input mt-1"
+              type="number"
+              inputMode="numeric"
+              min="0"
+              placeholder="أدخل المبلغ"
+              value={contractTotal}
+              onChange={(e) => setContractTotal(e.target.value)}
             />
-          ) : null}
-          <input
-            className="input"
-            type="number"
-            inputMode="numeric"
-            min="0"
-            placeholder="قيمة الاتفاق (اختياري)"
-            value={contractTotal}
-            onChange={(e) => setContractTotal(e.target.value)}
-          />
+          </label>
+          <label className="block text-sm font-semibold">
+            نسبة الإشراف
+            <input
+              className="input mt-1"
+              type="number"
+              inputMode="numeric"
+              min="0"
+              max="100"
+              placeholder="٪"
+              value={supervisionPct}
+              onChange={(e) => setSupervisionPct(e.target.value)}
+            />
+          </label>
           <button type="submit" className="btn btn-primary w-full">
             حفظ المشروع
           </button>
-          <button
-            type="button"
-            className="btn btn-secondary w-full"
-            onClick={() => setOpen(false)}
-          >
-            رجوع
+          <button type="button" className="btn btn-secondary w-full" onClick={reset}>
+            إلغاء
           </button>
         </form>
       </AppShell>
@@ -107,22 +288,21 @@ export default function ProjectsPage() {
       title="المشاريع"
       showFab
       action={
-        <button
-          type="button"
-          className="btn btn-primary text-sm"
-          onClick={() => setOpen(true)}
-        >
+        <button type="button" className="btn btn-primary text-sm" onClick={() => setStep("basics")}>
           مشروع جديد
         </button>
       }
     >
       {state.projects.length === 0 ? (
-        <p className="card text-stone-600">لسه مفيش مشاريع. ابدأ بأول مشروع.</p>
+        <div className="card text-center">
+          <p className="text-lg font-black">بدأت في مشروع جديد؟</p>
+          <p className="mt-1 text-sm text-stone-600">سجّل بياناته</p>
+        </div>
       ) : (
         <div className="space-y-3">
           {state.projects.map((project) => {
             const client = state.clients.find((item) => item.id === project.clientId);
-            const totals = projectTotals(state, project.id);
+            const money = projectMoney(state, project.id);
             return (
               <Link
                 key={project.id}
@@ -131,35 +311,25 @@ export default function ProjectsPage() {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="font-bold text-stone-900">{project.name}</p>
+                    <p className="font-bold">{project.name}</p>
                     <p className="mt-1 text-sm text-stone-500">
                       {client?.name || "بدون عميل"}
                       {project.address ? ` · ${project.address}` : ""}
                     </p>
                   </div>
-                  <span className="rounded-full bg-stone-100 px-2 py-1 text-xs text-stone-600">
+                  <span className="rounded-full bg-stone-100 px-2 py-1 text-xs">
                     {statusLabel(project.status)}
                   </span>
                 </div>
-                <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
+                <div className="mt-3 grid grid-cols-2 gap-2 text-center">
                   <div>
-                    <p className="text-stone-500">مستلم</p>
-                    <p className="font-bold text-emerald-700">
-                      {formatMoney(totals.received)}
-                    </p>
+                    <p className="text-xs text-stone-500">مستلم</p>
+                    <p className="text-lg font-black">{formatMoney(money.received)}</p>
                   </div>
                   <div>
-                    <p className="text-stone-500">مصروف</p>
-                    <p className="font-bold text-sky-700">{formatMoney(totals.spent)}</p>
-                  </div>
-                  <div>
-                    <p className="text-stone-500">متبقي</p>
-                    <p
-                      className={`font-bold ${
-                        totals.remaining < 0 ? "text-rose-600" : "text-stone-800"
-                      }`}
-                    >
-                      {formatMoney(totals.remaining)}
+                    <p className="text-xs text-stone-500">مصروف</p>
+                    <p className="text-lg font-black text-[#b4533a]">
+                      {formatMoney(money.spent)}
                     </p>
                   </div>
                 </div>

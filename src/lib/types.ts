@@ -5,7 +5,14 @@ export type Person = {
   notes?: string;
 };
 
-export type ProjectStatus = "active" | "paused" | "done";
+export type ProjectStatus =
+  | "not_started"
+  | "active"
+  | "paused"
+  | "done"
+  | "cancelled";
+
+export type ContractType = "contract" | "fixed" | "percent";
 
 export type Project = {
   id: string;
@@ -13,7 +20,9 @@ export type Project = {
   address?: string;
   clientId: string;
   status: ProjectStatus;
+  contractType: ContractType;
   contractTotal: number;
+  supervisionPct: number;
   createdAt: string;
 };
 
@@ -24,6 +33,8 @@ export type Category = {
 };
 
 export type TxType = "client_payment" | "expense";
+export type PaymentClass = "expense" | "supervision";
+export type ExpenseKind = "purchase" | "transport" | "labor";
 
 export type Transaction = {
   id: string;
@@ -34,9 +45,21 @@ export type Transaction = {
   notes?: string;
   privateNotes?: string;
   categoryId?: string;
+  paymentClass?: PaymentClass;
+  expenseKind?: ExpenseKind;
   attachmentDataUrl?: string;
   contractorId?: string;
   supplierId?: string;
+  createdAt: string;
+};
+
+export type Agreement = {
+  id: string;
+  projectId: string;
+  contractorId: string;
+  amount: number;
+  notes?: string;
+  attachmentDataUrl?: string;
   createdAt: string;
 };
 
@@ -57,5 +80,6 @@ export type AppState = {
   suppliers: Person[];
   categories: Category[];
   transactions: Transaction[];
+  agreements: Agreement[];
   photos: GalleryPhoto[];
 };

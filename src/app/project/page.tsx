@@ -1,40 +1,36 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
+import { FinanceBoard } from "@/components/FinanceBoard";
 import { ProjectTabs, type ProjectTab } from "@/components/ProjectTabs";
-import { SummaryCards } from "@/components/SummaryCards";
 import { readCompressedImage } from "@/lib/images";
 import {
-  expensesByCategory,
+  contractTypeLabel,
   expensesForPerson,
-  projectTotals,
   statusLabel,
 } from "@/lib/logic";
-import { formatDay, formatMoney } from "@/lib/money";
+import { formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
-import type { Project, ProjectStatus } from "@/lib/types";
+import type { ContractType, Project, ProjectStatus } from "@/lib/types";
 
 function ProjectInner() {
   const params = useSearchParams();
-  const { state, deleteTransaction, updateProject, addPhoto, updatePhotoShare, deletePhoto } =
-    useStore();
+  const {
+    state,
+    deleteTransaction,
+    updateProject,
+    addPhoto,
+    updatePhotoShare,
+    deletePhoto,
+  } = useStore();
   const projectId = params.get("id") || "";
   const tab = (params.get("tab") as ProjectTab) || "finance";
   const project = state.projects.find((item) => item.id === projectId);
 
-  const totals = useMemo(
-    () => (project ? projectTotals(state, project.id) : null),
-    [state, project],
-  );
-  const byCategory = useMemo(
-    () => (project ? expensesByCategory(state, project.id) : []),
-    [state, project],
-  );
-
-  if (!project || !totals) {
+  if (!project) {
     return (
       <AppShell title="المشروع">
         <p className="card text-stone-600">المشروع مش موجود.</p>
@@ -47,181 +43,65 @@ function ProjectInner() {
 
   const client = state.clients.find((item) => item.id === project.clientId);
   const moneyHref = `/money/?projectId=${encodeURIComponent(project.id)}`;
+  const agreements = (state.agreements || []).filter((item) => item.projectId === project.id);
 
   return (
-    <AppShell
-      title={project.name}
-      action={
-        <Link href={moneyHref} className="btn btn-primary text-sm">
-          حركة فلوس
-        </Link>
-      }
-    >
-      <div className="mb-3 flex items-center gap-2 text-sm text-stone-600">
-        <span>{client?.name || "بدون عميل"}</span>
-        <span>·</span>
-        <span>{statusLabel(project.status)}</span>
+    <AppShell title={project.name} showFab fabHref={moneyHref}>
+      <div className="mb-3 text-sm text-stone-600">
+        {client?.name || "بدون عميل"} · {statusLabel(project.status)}
       </div>
-
       <ProjectTabs projectId={project.id} active={tab} />
 
       {tab === "finance" ? (
-        <div className="mt-3 space-y-4">
-          <SummaryCards
-            received={totals.received}
-            spent={totals.spent}
-            remaining={totals.remaining}
-            contractTotal={project.contractTotal}
-          />
-
-          <section className="card">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="font-bold">المصروف حسب الفئة</h2>
-              <p className="text-sm font-bold text-[var(--brand)]">
-                {formatMoney(totals.spent)}
-              </p>
-            </div>
-            {byCategory.length === 0 ? (
-              <p className="text-sm text-stone-500">لسه مفيش مصروفات.</p>
-            ) : (
-              <>
-                <div className="mb-3 flex h-3 overflow-hidden rounded-full bg-stone-100">
-                  {byCategory.map((row) => (
-                    <div
-                      key={row.category.id}
-                      style={{
-                        width: `${row.pct}%`,
-                        background: row.category.color,
-                      }}
-                      title={row.category.name}
-                    />
-                  ))}
-                </div>
-                <ul className="space-y-3">
-                  {byCategory.map((row) => (
-                    <li key={row.category.id} className="text-sm">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="flex items-center gap-2 font-semibold">
-                          <span
-                            className="inline-block h-2.5 w-2.5 rounded-full"
-                            style={{ background: row.category.color }}
-                          />
-                          {row.category.name}
-                        </span>
-                        <span>
-                          {row.pct.toFixed(0)}% · {formatMoney(row.amount)}
-                        </span>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-          </section>
-
-          <section className="card">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 className="font-bold">الحركات</h2>
-              <Link
-                href={`/print/?id=${encodeURIComponent(project.id)}`}
-                className="text-sm font-semibold text-[var(--brand)]"
-              >
-                طباعة الكشف
-              </Link>
-            </div>
-            {totals.txs.length === 0 ? (
-              <p className="text-sm text-stone-500">
-                لسه مفيش حركات. سجّل أول دفعة أو مصروف.
-              </p>
-            ) : (
-              <ul className="divide-y divide-stone-100">
-                {totals.txs.map((tx) => {
-                  const category = state.categories.find((item) => item.id === tx.categoryId);
-                  const personName =
-                    state.contractors.find((item) => item.id === tx.contractorId)?.name ||
-                    state.suppliers.find((item) => item.id === tx.supplierId)?.name;
-                  return (
-                    <li key={tx.id} className="py-3 text-sm">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="font-semibold">
-                            {tx.type === "client_payment"
-                              ? tx.notes || "دفعة من العميل"
-                              : tx.notes || category?.name || "مصروف"}
-                          </p>
-                          <p className="text-stone-500">
-                            {formatDay(tx.date)}
-                            {tx.type === "expense" && category ? ` · ${category.name}` : ""}
-                            {personName ? ` · ${personName}` : ""}
-                          </p>
-                        </div>
-                        <p
-                          className={`shrink-0 font-bold ${
-                            tx.type === "client_payment"
-                              ? "text-emerald-700"
-                              : "text-sky-700"
-                          }`}
-                        >
-                          {tx.type === "client_payment" ? "+" : "−"}
-                          {formatMoney(tx.amount)}
-                        </p>
-                      </div>
-                      {tx.attachmentDataUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={tx.attachmentDataUrl}
-                          alt="مرفق الحركة"
-                          className="mt-2 h-16 w-16 rounded-lg object-cover"
-                        />
-                      ) : null}
-                      <button
-                        type="button"
-                        className="mt-2 text-xs text-rose-600"
-                        onClick={() => {
-                          if (window.confirm("تحذف الحركة دي؟")) {
-                            deleteTransaction(tx.id);
-                          }
-                        }}
-                      >
-                        حذف
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
+        <div className="mt-3">
+          <FinanceBoard state={state} projectId={project.id} onDelete={deleteTransaction} />
+          <Link
+            href={`/print/?id=${encodeURIComponent(project.id)}`}
+            className="btn btn-secondary mt-3 w-full"
+          >
+            تحميل كشف PDF
+          </Link>
         </div>
       ) : null}
 
       {tab === "contractors" ? (
-        <PeopleOnProject
-          empty="لسه مفيش مقاول متربط بمصروف المشروع. اربطه لما تسجل المصروف."
-          people={state.contractors
-            .map((person) => ({
-              ...person,
-              spent: expensesForPerson(state, "contractorId", person.id, project.id).reduce(
-                (sum, tx) => sum + tx.amount,
-                0,
-              ),
-            }))
-            .filter((person) => person.spent > 0)}
-        />
+        <div className="mt-3 space-y-3">
+          <Link
+            href={`/agreement/?projectId=${encodeURIComponent(project.id)}`}
+            className="card block text-center"
+          >
+            <p className="text-lg font-black">اتفقت مع مقاول على المشروع؟</p>
+            <p className="mt-1 text-sm text-stone-600">سجّل الاتفاق ع المشروع</p>
+          </Link>
+          {agreements.length === 0 ? (
+            <p className="text-sm text-stone-500">لسه مفيش اتفاقات.</p>
+          ) : (
+            agreements.map((agreement) => {
+              const person = state.contractors.find((item) => item.id === agreement.contractorId);
+              const paid = expensesForPerson(
+                state,
+                "contractorId",
+                agreement.contractorId,
+                project.id,
+              ).reduce((sum, tx) => sum + tx.amount, 0);
+              return (
+                <div key={agreement.id} className="card">
+                  <p className="font-bold">{person?.name || "مقاول"}</p>
+                  <p className="mt-1 text-sm text-stone-600">
+                    المتفق عليه {formatMoney(agreement.amount)} · اتدفع {formatMoney(paid)}
+                  </p>
+                  {agreement.notes ? (
+                    <p className="mt-1 text-sm text-stone-500">{agreement.notes}</p>
+                  ) : null}
+                </div>
+              );
+            })
+          )}
+        </div>
       ) : null}
 
       {tab === "suppliers" ? (
-        <PeopleOnProject
-          empty="لسه مفيش مورد متربط بمصروف المشروع. اربطه لما تسجل المصروف."
-          people={state.suppliers
-            .map((person) => ({
-              ...person,
-              spent: expensesForPerson(state, "supplierId", person.id, project.id).reduce(
-                (sum, tx) => sum + tx.amount,
-                0,
-              ),
-            }))
-            .filter((person) => person.spent > 0)}
-        />
+        <SupplierList projectId={project.id} />
       ) : null}
 
       {tab === "gallery" ? (
@@ -235,41 +115,34 @@ function ProjectInner() {
       ) : null}
 
       {tab === "settings" ? (
-        <ProjectSettingsForm
-          project={project}
-          clients={state.clients}
-          onSave={updateProject}
-        />
+        <ProjectSettingsForm project={project} clients={state.clients} onSave={updateProject} />
       ) : null}
     </AppShell>
   );
 }
 
-function PeopleOnProject({
-  people,
-  empty,
-}: {
-  people: { id: string; name: string; phone?: string; spent: number }[];
-  empty: string;
-}) {
+function SupplierList({ projectId }: { projectId: string }) {
+  const { state } = useStore();
+  const people = state.suppliers
+    .map((person) => ({
+      ...person,
+      spent: expensesForPerson(state, "supplierId", person.id, projectId).reduce(
+        (sum, tx) => sum + tx.amount,
+        0,
+      ),
+    }))
+    .filter((person) => person.spent > 0);
+
   if (people.length === 0) {
-    return <p className="card mt-3 text-stone-500">{empty}</p>;
+    return <p className="card mt-3 text-stone-500">لسه مفيش مورد متربط بمصروف المشروع.</p>;
   }
+
   return (
     <div className="mt-3 space-y-2">
       {people.map((person) => (
-        <div key={person.id} className="card">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="font-bold">{person.name}</p>
-              {person.phone ? (
-                <p className="text-sm text-stone-500" dir="ltr">
-                  {person.phone}
-                </p>
-              ) : null}
-            </div>
-            <p className="font-bold text-sky-800">{formatMoney(person.spent)}</p>
-          </div>
+        <div key={person.id} className="card flex items-center justify-between">
+          <p className="font-bold">{person.name}</p>
+          <p className="font-bold text-[#b4533a]">{formatMoney(person.spent)}</p>
         </div>
       ))}
     </div>
@@ -284,30 +157,21 @@ function Gallery({
   onDelete,
 }: {
   projectId: string;
-  photos: {
-    id: string;
-    dataUrl: string;
-    caption?: string;
-    sharedWithClient: boolean;
-  }[];
+  photos: { id: string; dataUrl: string; caption?: string; sharedWithClient: boolean }[];
   onAdd: (input: {
     projectId: string;
     dataUrl: string;
     caption?: string;
     sharedWithClient?: boolean;
   }) => string;
-  onShare: (photoId: string, sharedWithClient: boolean) => void;
+  onShare: (photoId: string, shared: boolean) => void;
   onDelete: (photoId: string) => void;
 }) {
-  const [draft, setDraft] = useState<{ dataUrl: string; caption: string } | null>(null);
+  const [draft, setDraft] = useState<{ dataUrl: string; caption: string; shared: boolean } | null>(
+    null,
+  );
   const [openId, setOpenId] = useState("");
   const open = photos.find((photo) => photo.id === openId);
-
-  async function onFile(file?: File | null) {
-    if (!file) return;
-    const dataUrl = await readCompressedImage(file);
-    setDraft({ dataUrl, caption: "" });
-  }
 
   return (
     <div className="mt-3 space-y-3">
@@ -320,31 +184,31 @@ function Gallery({
               projectId,
               dataUrl: draft.dataUrl,
               caption: draft.caption.trim() || "صورة من الموقع",
-              sharedWithClient: true,
+              sharedWithClient: draft.shared,
             });
             setDraft(null);
           }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={draft.dataUrl}
-            alt="معاينة"
-            className="aspect-video w-full rounded-xl object-cover"
-          />
+          <img src={draft.dataUrl} alt="معاينة" className="aspect-video w-full rounded-xl object-cover" />
           <input
             className="input"
-            placeholder="اكتب وصف للصورة"
+            placeholder="وصف الصورة"
             value={draft.caption}
             onChange={(e) => setDraft({ ...draft, caption: e.target.value })}
           />
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={draft.shared}
+              onChange={(e) => setDraft({ ...draft, shared: e.target.checked })}
+            />
+            تظهر للعميل
+          </label>
           <button type="submit" className="btn btn-primary w-full">
             حفظ في المعرض
           </button>
-          <button
-            type="button"
-            className="btn btn-secondary w-full"
-            onClick={() => setDraft(null)}
-          >
+          <button type="button" className="btn btn-secondary w-full" onClick={() => setDraft(null)}>
             إلغاء
           </button>
         </form>
@@ -356,9 +220,15 @@ function Gallery({
             accept="image/*"
             capture="environment"
             className="hidden"
-            onChange={(e) => {
-              void onFile(e.target.files?.[0]);
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
               e.target.value = "";
+              if (!file) return;
+              setDraft({
+                dataUrl: await readCompressedImage(file),
+                caption: "",
+                shared: true,
+              });
             }}
           />
         </label>
@@ -378,9 +248,7 @@ function Gallery({
                   className="aspect-square w-full rounded-xl object-cover"
                 />
               </button>
-              <p className="mt-2 truncate text-xs text-stone-600">
-                {photo.caption || "بدون وصف"}
-              </p>
+              <p className="mt-2 truncate text-xs">{photo.caption || "بدون وصف"}</p>
               <label className="mt-1 flex items-center gap-2 text-xs">
                 <input
                   type="checkbox"
@@ -410,11 +278,7 @@ function Gallery({
           onClick={() => setOpenId("")}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={open.dataUrl}
-            alt={open.caption || "صورة"}
-            className="max-h-[80dvh] max-w-full rounded-xl"
-          />
+          <img src={open.dataUrl} alt={open.caption || "صورة"} className="max-h-[80dvh] max-w-full rounded-xl" />
         </button>
       ) : null}
     </div>
@@ -435,7 +299,9 @@ function ProjectSettingsForm({
       address?: string;
       clientId?: string;
       status?: ProjectStatus;
+      contractType?: ContractType;
       contractTotal?: number;
+      supervisionPct?: number;
     },
   ) => void;
 }) {
@@ -443,7 +309,9 @@ function ProjectSettingsForm({
   const [address, setAddress] = useState(project.address || "");
   const [clientId, setClientId] = useState(project.clientId);
   const [status, setStatus] = useState<ProjectStatus>(project.status);
+  const [contractType, setContractType] = useState<ContractType>(project.contractType || "fixed");
   const [contractTotal, setContractTotal] = useState(String(project.contractTotal || ""));
+  const [supervisionPct, setSupervisionPct] = useState(String(project.supervisionPct || 0));
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
@@ -451,7 +319,9 @@ function ProjectSettingsForm({
     setAddress(project.address || "");
     setClientId(project.clientId);
     setStatus(project.status);
+    setContractType(project.contractType || "fixed");
     setContractTotal(String(project.contractTotal || ""));
+    setSupervisionPct(String(project.supervisionPct || 0));
   }, [project]);
 
   return (
@@ -466,29 +336,22 @@ function ProjectSettingsForm({
             address,
             clientId,
             status,
+            contractType,
             contractTotal: Number(contractTotal) || 0,
+            supervisionPct: Number(supervisionPct) || 0,
           });
           setSaved(true);
         }}
       >
         <p className="font-bold">بيانات المشروع</p>
-        <input
-          className="input"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-        />
+        <input className="input" value={name} onChange={(e) => setName(e.target.value)} required />
         <input
           className="input"
           placeholder="العنوان"
           value={address}
           onChange={(e) => setAddress(e.target.value)}
         />
-        <select
-          className="input"
-          value={clientId}
-          onChange={(e) => setClientId(e.target.value)}
-        >
+        <select className="input" value={clientId} onChange={(e) => setClientId(e.target.value)}>
           {clients.map((client) => (
             <option key={client.id} value={client.id}>
               {client.name}
@@ -500,36 +363,44 @@ function ProjectSettingsForm({
           value={status}
           onChange={(e) => setStatus(e.target.value as ProjectStatus)}
         >
-          <option value="active">شغال</option>
-          <option value="paused">واقف</option>
-          <option value="done">خلّص</option>
+          <option value="not_started">لم يبدأ</option>
+          <option value="active">قيد التنفيذ</option>
+          <option value="paused">معلق</option>
+          <option value="done">مكتمل</option>
+          <option value="cancelled">ملغي</option>
+        </select>
+        <select
+          className="input"
+          value={contractType}
+          onChange={(e) => setContractType(e.target.value as ContractType)}
+        >
+          <option value="contract">{contractTypeLabel("contract")}</option>
+          <option value="fixed">{contractTypeLabel("fixed")}</option>
+          <option value="percent">{contractTypeLabel("percent")}</option>
         </select>
         <input
           className="input"
           type="number"
-          inputMode="numeric"
           min="0"
-          placeholder="قيمة الاتفاق"
+          placeholder="الميزانية الإجمالية"
           value={contractTotal}
           onChange={(e) => setContractTotal(e.target.value)}
+        />
+        <input
+          className="input"
+          type="number"
+          min="0"
+          placeholder="نسبة الإشراف"
+          value={supervisionPct}
+          onChange={(e) => setSupervisionPct(e.target.value)}
         />
         <button type="submit" className="btn btn-primary w-full">
           حفظ البيانات
         </button>
         {saved ? <p className="text-sm text-emerald-700">اتحفظ.</p> : null}
       </form>
-
-      <Link
-        href={`/client/?id=${encodeURIComponent(project.id)}`}
-        className="btn btn-secondary w-full"
-      >
-        عرض العميل
-      </Link>
-      <Link
-        href={`/print/?id=${encodeURIComponent(project.id)}`}
-        className="btn btn-secondary w-full"
-      >
-        طباعة كشف الحساب
+      <Link href={`/client/?id=${encodeURIComponent(project.id)}`} className="btn btn-secondary w-full">
+        شوف هيشوف العميل إيه
       </Link>
     </div>
   );

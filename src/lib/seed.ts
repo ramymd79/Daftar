@@ -1,4 +1,4 @@
-import type { AppState } from "./types";
+import type { AppState, ExpenseKind } from "./types";
 
 export const DEMO_PASSWORD = "demo1234";
 
@@ -56,7 +56,9 @@ export function createSeedState(): AppState {
         address: "المعادي — القاهرة",
         clientId: "cli_ahmed",
         status: "active",
+        contractType: "fixed",
         contractTotal: 2050000,
+        supervisionPct: 12,
         createdAt: "2024-08-01T10:00:00.000Z",
       },
       {
@@ -65,7 +67,9 @@ export function createSeedState(): AppState {
         address: "الشيخ زايد — الجيزة",
         clientId: "cli_mona",
         status: "active",
+        contractType: "fixed",
         contractTotal: 780000,
+        supervisionPct: 10,
         createdAt: "2024-09-10T10:00:00.000Z",
       },
     ],
@@ -77,6 +81,7 @@ export function createSeedState(): AppState {
         amount: 250000,
         date: "2024-08-05T12:00:00.000Z",
         notes: "دفعة تحت الحساب",
+        paymentClass: "expense",
         createdAt: "2024-08-05T12:00:00.000Z",
       },
       {
@@ -86,6 +91,7 @@ export function createSeedState(): AppState {
         amount: 145000,
         date: "2024-08-28T14:39:00.000Z",
         notes: "دفعة ثانية",
+        paymentClass: "expense",
         createdAt: "2024-08-28T14:39:00.000Z",
       },
       {
@@ -96,6 +102,7 @@ export function createSeedState(): AppState {
         date: "2024-08-12T09:00:00.000Z",
         notes: "شراء بلاط",
         categoryId: "cat_tiles",
+        expenseKind: "purchase" satisfies ExpenseKind,
         supplierId: "sup_tiles",
         createdAt: "2024-08-12T09:00:00.000Z",
       },
@@ -107,6 +114,7 @@ export function createSeedState(): AppState {
         date: "2024-08-13T11:00:00.000Z",
         notes: "نقل ومشونة بلاط",
         categoryId: "cat_tiles",
+        expenseKind: "transport",
         createdAt: "2024-08-13T11:00:00.000Z",
       },
       {
@@ -117,6 +125,7 @@ export function createSeedState(): AppState {
         date: "2024-08-20T16:00:00.000Z",
         notes: "مصنعيات بلاط",
         categoryId: "cat_tiles",
+        expenseKind: "labor",
         contractorId: "ctr_naggash",
         createdAt: "2024-08-20T16:00:00.000Z",
       },
@@ -128,6 +137,7 @@ export function createSeedState(): AppState {
         date: "2024-08-22T10:00:00.000Z",
         notes: "خشب أبواب",
         categoryId: "cat_wood",
+        expenseKind: "purchase",
         createdAt: "2024-08-22T10:00:00.000Z",
       },
       {
@@ -138,6 +148,7 @@ export function createSeedState(): AppState {
         date: "2024-08-23T10:00:00.000Z",
         notes: "نقل نجارة",
         categoryId: "cat_wood",
+        expenseKind: "transport",
         createdAt: "2024-08-23T10:00:00.000Z",
       },
       {
@@ -148,6 +159,7 @@ export function createSeedState(): AppState {
         date: "2024-08-25T15:00:00.000Z",
         notes: "دهانات",
         categoryId: "cat_paint",
+        expenseKind: "purchase",
         supplierId: "sup_paint",
         createdAt: "2024-08-25T15:00:00.000Z",
       },
@@ -158,6 +170,7 @@ export function createSeedState(): AppState {
         amount: 120000,
         date: "2024-09-12T10:00:00.000Z",
         notes: "دفعة أولى",
+        paymentClass: "expense",
         createdAt: "2024-09-12T10:00:00.000Z",
       },
       {
@@ -168,7 +181,18 @@ export function createSeedState(): AppState {
         date: "2024-09-15T12:00:00.000Z",
         notes: "محارة وكهرباء ابتدائي",
         categoryId: "cat_elec",
+        expenseKind: "labor",
         createdAt: "2024-09-15T12:00:00.000Z",
+      },
+    ],
+    agreements: [
+      {
+        id: "agr_naggash",
+        projectId: "prj_maadi",
+        contractorId: "ctr_naggash",
+        amount: 30000,
+        notes: "نقاشة الدور الأول",
+        createdAt: "2024-08-18T10:00:00.000Z",
       },
     ],
     photos: [

@@ -32,7 +32,7 @@ export function AppShell({
       {showFab ? (
         <Link
           href={fabHref}
-          className="fixed bottom-20 left-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--brand)] text-2xl text-white shadow-lg"
+          className="fixed bottom-20 left-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--fab)] text-3xl text-white shadow-lg"
           aria-label="تسجيل حركة فلوس"
         >
           +

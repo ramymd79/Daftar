@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useMemo } from "react";
+import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { expensesByCategory, projectTotals } from "@/lib/logic";
+import { expensesByCategory, projectMoney } from "@/lib/logic";
 import { formatDay, formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
 
@@ -12,32 +12,20 @@ function PrintInner() {
   const { state } = useStore();
   const projectId = params.get("id") || "";
   const project = state.projects.find((item) => item.id === projectId);
-  const totals = useMemo(
-    () => (project ? projectTotals(state, project.id) : null),
-    [state, project],
-  );
-  const byCategory = useMemo(
-    () => (project ? expensesByCategory(state, project.id) : []),
-    [state, project],
-  );
 
-  if (!project || !totals) {
-    return <div className="p-6">المشروع مش موجود.</div>;
-  }
+  if (!project) return <div className="p-6">المشروع مش موجود.</div>;
 
   const client = state.clients.find((item) => item.id === project.clientId);
-  const agreementLeft = Math.max(project.contractTotal - totals.received, 0);
+  const money = projectMoney(state, project.id);
+  const rows = expensesByCategory(state, project.id);
 
   return (
     <div className="mx-auto max-w-3xl bg-white px-4 py-6 text-stone-900">
       <div className="no-print mb-4 flex flex-wrap gap-2">
         <button type="button" className="btn btn-primary" onClick={() => window.print()}>
-          طباعة أو حفظ PDF
+          تحميل PDF
         </button>
-        <Link
-          href={`/project/?id=${encodeURIComponent(project.id)}`}
-          className="btn btn-secondary"
-        >
+        <Link href={`/project/?id=${encodeURIComponent(project.id)}`} className="btn btn-secondary">
           رجوع
         </Link>
       </div>
@@ -52,44 +40,36 @@ function PrintInner() {
         <p className="text-xs text-stone-500">تاريخ الطباعة: {formatDay(new Date().toISOString())}</p>
       </header>
 
-      <section className="mb-6 grid grid-cols-3 gap-3 text-center">
-        <div className="rounded-xl bg-emerald-50 p-3">
-          <p className="text-xs">مستلم</p>
-          <p className="text-xl font-bold">{formatMoney(totals.received)}</p>
-        </div>
-        <div className="rounded-xl bg-sky-50 p-3">
-          <p className="text-xs">مصروف</p>
-          <p className="text-xl font-bold">{formatMoney(totals.spent)}</p>
-        </div>
-        <div className="rounded-xl bg-stone-100 p-3">
-          <p className="text-xs">متبقي</p>
-          <p className="text-xl font-bold">{formatMoney(totals.remaining)}</p>
-        </div>
+      <section className="mb-6 grid grid-cols-2 gap-3 text-center">
+        <Box label="المستلم (شامل الإشراف)" value={formatMoney(money.received)} />
+        <Box label="المتبقي بعد المصروف والإشراف" value={formatMoney(money.remaining)} />
+        <Box
+          label={`نسبة الإشراف المستحقة (${project.supervisionPct || 0}%)`}
+          value={formatMoney(money.supervisionDue)}
+        />
+        <Box label="المصروف" value={formatMoney(money.spent)} />
       </section>
 
-      {project.contractTotal > 0 ? (
-        <p className="mb-6 text-sm text-stone-600">
-          قيمة الاتفاق {formatMoney(project.contractTotal)} · لسه على العميل{" "}
-          {formatMoney(agreementLeft)}
-        </p>
-      ) : null}
-
       <section className="mb-6">
-        <h2 className="mb-2 font-bold">المصروف حسب الفئة</h2>
+        <h2 className="mb-2 font-bold">توزيع المصروفات</h2>
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b border-stone-200 text-right">
-              <th className="py-2">الفئة</th>
-              <th className="py-2">النسبة</th>
-              <th className="py-2">المبلغ</th>
+            <tr className="border-b text-right">
+              <th className="py-2">البند</th>
+              <th className="py-2">مشتريات</th>
+              <th className="py-2">نقل وتخزين</th>
+              <th className="py-2">مقاولين</th>
+              <th className="py-2">الإجمالي</th>
             </tr>
           </thead>
           <tbody>
-            {byCategory.map((row) => (
+            {rows.map((row) => (
               <tr key={row.category.id} className="border-b border-stone-100">
                 <td className="py-2">{row.category.name}</td>
-                <td className="py-2">{row.pct.toFixed(0)}%</td>
-                <td className="py-2">{formatMoney(row.amount)}</td>
+                <td className="py-2">{formatMoney(row.purchase)}</td>
+                <td className="py-2">{formatMoney(row.transport)}</td>
+                <td className="py-2">{formatMoney(row.labor)}</td>
+                <td className="py-2 font-semibold">{formatMoney(row.amount)}</td>
               </tr>
             ))}
           </tbody>
@@ -97,10 +77,10 @@ function PrintInner() {
       </section>
 
       <section>
-        <h2 className="mb-2 font-bold">تفاصيل الحركات</h2>
+        <h2 className="mb-2 font-bold">الحركات</h2>
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b border-stone-200 text-right">
+            <tr className="border-b text-right">
               <th className="py-2">التاريخ</th>
               <th className="py-2">البيان</th>
               <th className="py-2">النوع</th>
@@ -108,17 +88,18 @@ function PrintInner() {
             </tr>
           </thead>
           <tbody>
-            {[...totals.txs].reverse().map((tx) => {
+            {[...money.txs].reverse().map((tx) => {
               const category = state.categories.find((item) => item.id === tx.categoryId);
               return (
                 <tr key={tx.id} className="border-b border-stone-100">
                   <td className="py-2">{formatDay(tx.date)}</td>
+                  <td className="py-2">{tx.notes || "—"}</td>
                   <td className="py-2">
-                    {tx.notes || "—"}
-                    {tx.attachmentDataUrl ? " · مرفق" : ""}
-                  </td>
-                  <td className="py-2">
-                    {tx.type === "client_payment" ? "دفعة عميل" : category?.name || "مصروف"}
+                    {tx.type === "client_payment"
+                      ? tx.paymentClass === "supervision"
+                        ? "إشراف"
+                        : "دفعة عميل"
+                      : category?.name || "مصروف"}
                   </td>
                   <td className="py-2 font-semibold">
                     {tx.type === "client_payment" ? "+" : "−"}
@@ -130,6 +111,15 @@ function PrintInner() {
           </tbody>
         </table>
       </section>
+    </div>
+  );
+}
+
+function Box({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-stone-50 p-3">
+      <p className="text-xs">{label}</p>
+      <p className="text-xl font-bold">{value}</p>
     </div>
   );
 }
