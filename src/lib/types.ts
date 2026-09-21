@@ -1,66 +1,62 @@
-export type ProfitMode = "percent" | "fixed_fee" | "fixed_price";
-
-export type ExpenseCategory =
-  | "plumbing"
-  | "electrical"
-  | "painting"
-  | "plaster"
-  | "tiling"
-  | "carpentry"
-  | "other";
-
-export type Payment = {
+export type Person = {
   id: string;
-  date: string;
-  amount: number;
-  note: string;
+  name: string;
+  phone?: string;
+  notes?: string;
 };
 
-export type Expense = {
-  id: string;
-  date: string;
-  amount: number;
-  category: ExpenseCategory;
-  note: string;
-  /** Optional data-URL receipt photo for the local demo */
-  photoDataUrl?: string;
-};
+export type ProjectStatus = "active" | "paused" | "done";
 
 export type Project = {
   id: string;
   name: string;
-  clientName: string;
-  address: string;
-  status: "active" | "paused" | "done";
-  profitMode: ProfitMode;
-  /** Used when profitMode is percent (e.g. 15 = 15%) */
-  profitPercent: number;
-  /** Used when profitMode is fixed_fee */
-  fixedFee: number;
-  /** Contract price when profitMode is fixed_price */
-  contractPrice: number;
-  payments: Payment[];
-  expenses: Expense[];
+  address?: string;
+  clientId: string;
+  status: ProjectStatus;
+  contractTotal: number;
+  supervisionPct: number;
   createdAt: string;
 };
 
-export type DaftarStore = {
-  version: 1;
+export type Category = {
+  id: string;
+  name: string;
+  color: string;
+};
+
+export type TxType = "client_payment" | "expense";
+
+export type Transaction = {
+  id: string;
+  projectId: string;
+  type: TxType;
+  amount: number;
+  date: string;
+  notes?: string;
+  privateNotes?: string;
+  categoryId?: string;
+  attachmentDataUrl?: string;
+  contractorId?: string;
+  supplierId?: string;
+  createdAt: string;
+};
+
+export type GalleryPhoto = {
+  id: string;
+  projectId: string;
+  dataUrl: string;
+  caption?: string;
+  sharedWithClient: boolean;
+  createdAt: string;
+};
+
+export type AppState = {
+  unlocked: boolean;
   projects: Project[];
-};
-
-export const EXPENSE_LABELS: Record<ExpenseCategory, string> = {
-  plumbing: "سباكة",
-  electrical: "كهرباء",
-  painting: "نقاشة",
-  plaster: "محارة",
-  tiling: "سيراميك",
-  carpentry: "نجارة",
-  other: "أخرى",
-};
-
-export const PROFIT_MODE_LABELS: Record<ProfitMode, string> = {
-  percent: "نسبة من المصروفات",
-  fixed_fee: "مبلغ ثابت للمكتب",
-  fixed_price: "مقاولة بسعر متفق عليه",
+  clients: Person[];
+  contractors: Person[];
+  suppliers: Person[];
+  categories: Category[];
+  transactions: Transaction[];
+  photos: GalleryPhoto[];
 };
