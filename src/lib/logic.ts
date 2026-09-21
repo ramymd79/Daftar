@@ -21,11 +21,7 @@ export function projectTotals(state: AppState, projectId: string) {
     (t) => t.amount,
   );
   const remaining = received - spent;
-  const project = state.projects.find((p) => p.id === projectId);
-  const supervisionDue = project
-    ? Math.round((received * project.supervisionPct) / 100)
-    : 0;
-  return { received, spent, remaining, supervisionDue, txs };
+  return { received, spent, remaining, txs };
 }
 
 export type CategorySpend = {
@@ -59,7 +55,23 @@ export function expensesByCategory(
 }
 
 export function statusLabel(status: string): string {
-  if (status === "done") return "منتهي";
-  if (status === "paused") return "متوقف";
-  return "جارٍ";
+  if (status === "done") return "خلّص";
+  if (status === "paused") return "واقف";
+  return "شغال";
+}
+
+export function expensesForPerson(
+  state: AppState,
+  key: "contractorId" | "supplierId",
+  personId: string,
+  projectId?: string,
+): Transaction[] {
+  return state.transactions
+    .filter(
+      (tx) =>
+        tx.type === "expense" &&
+        tx[key] === personId &&
+        (!projectId || tx.projectId === projectId),
+    )
+    .sort((a, b) => b.date.localeCompare(a.date));
 }

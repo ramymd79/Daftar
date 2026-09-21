@@ -7,11 +7,13 @@ export function AppShell({
   children,
   action,
   showFab = false,
+  fabHref = "/money/",
 }: {
   title: string;
   children: React.ReactNode;
   action?: React.ReactNode;
   showFab?: boolean;
+  fabHref?: string;
 }) {
   return (
     <div className="mx-auto min-h-dvh max-w-lg bg-[var(--bg)] pb-24">
@@ -29,7 +31,7 @@ export function AppShell({
       <main className="px-4 pt-4">{children}</main>
       {showFab ? (
         <Link
-          href="/money/"
+          href={fabHref}
           className="fixed bottom-20 left-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--brand)] text-2xl text-white shadow-lg"
           aria-label="تسجيل حركة فلوس"
         >

@@ -5,14 +5,14 @@ import { Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { SummaryCards } from "@/components/SummaryCards";
 import { expensesByCategory, projectTotals } from "@/lib/logic";
-import { formatMoney } from "@/lib/money";
+import { formatDay, formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
 
 function ClientInner() {
   const params = useSearchParams();
   const { state } = useStore();
   const projectId = params.get("id") || "";
-  const project = state.projects.find((p) => p.id === projectId);
+  const project = state.projects.find((item) => item.id === projectId);
   const [tab, setTab] = useState<"finance" | "photos">("finance");
 
   const totals = useMemo(
@@ -32,27 +32,32 @@ function ClientInner() {
     );
   }
 
-  const client = state.clients.find((c) => c.id === project.clientId);
+  const client = state.clients.find((item) => item.id === project.clientId);
   const photos = state.photos.filter(
-    (p) => p.projectId === project.id && p.sharedWithClient,
+    (photo) => photo.projectId === project.id && photo.sharedWithClient,
   );
 
   return (
     <div className="mx-auto min-h-dvh max-w-lg bg-[var(--bg)] pb-8">
       <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
         <div className="flex items-start justify-between gap-3">
-          <p>
-            تشاهد كعميل: {client?.name || "عميل"}. وضع للقراءة فقط، لا يمكن
-            التعديل.
-          </p>
-          <Link href={`/project/?id=${encodeURIComponent(project.id)}`} className="shrink-0 font-bold underline">
-            خروج
+          <p>عرض للعميل {client?.name || ""} للمراجعة بس. مفيش تعديل من هنا.</p>
+          <Link
+            href={`/project/?id=${encodeURIComponent(project.id)}`}
+            className="shrink-0 font-bold underline"
+          >
+            رجوع
           </Link>
         </div>
       </div>
 
       <div className="px-4 pt-4">
+        <p className="text-xs font-bold text-[var(--brand)]">دفتر</p>
         <h1 className="text-xl font-black">{project.name}</h1>
+        {project.address ? (
+          <p className="mt-1 text-sm text-stone-500">{project.address}</p>
+        ) : null}
+
         <div className="mt-3 flex gap-2">
           <button
             type="button"
@@ -77,22 +82,24 @@ function ClientInner() {
               spent={totals.spent}
               remaining={totals.remaining}
               contractTotal={project.contractTotal}
-              supervisionDue={totals.supervisionDue}
-              supervisionPct={project.supervisionPct}
             />
 
             <section className="card">
-              <h2 className="mb-3 font-bold">توزيع المصروفات</h2>
-              <ul className="space-y-2 text-sm">
-                {byCategory.map((row) => (
-                  <li key={row.category.id} className="flex justify-between">
-                    <span>{row.category.name}</span>
-                    <span>
-                      ({row.pct.toFixed(1)}%) {formatMoney(row.amount)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              <h2 className="mb-3 font-bold">المصروف حسب الفئة</h2>
+              {byCategory.length === 0 ? (
+                <p className="text-sm text-stone-500">لسه مفيش مصروفات.</p>
+              ) : (
+                <ul className="space-y-2 text-sm">
+                  {byCategory.map((row) => (
+                    <li key={row.category.id} className="flex justify-between gap-3">
+                      <span>{row.category.name}</span>
+                      <span>
+                        {row.pct.toFixed(0)}% · {formatMoney(row.amount)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </section>
 
             <section className="card">
@@ -102,15 +109,19 @@ function ClientInner() {
                   href={`/print/?id=${encodeURIComponent(project.id)}`}
                   className="text-sm font-semibold text-[var(--brand)]"
                 >
-                  تحميل كشف PDF
+                  طباعة الكشف
                 </Link>
               </div>
               <ul className="divide-y divide-stone-100 text-sm">
                 {totals.txs.map((tx) => (
                   <li key={tx.id} className="flex justify-between gap-3 py-2">
                     <span>
-                      {tx.type === "client_payment" ? "دفعة" : "مصروف"}
-                      {tx.notes ? ` · ${tx.notes}` : ""}
+                      {tx.type === "client_payment"
+                        ? tx.notes || "دفعة"
+                        : tx.notes || "مصروف"}
+                      <span className="block text-xs text-stone-500">
+                        {formatDay(tx.date)}
+                      </span>
                     </span>
                     <span className="font-bold">{formatMoney(tx.amount)}</span>
                   </li>
@@ -121,7 +132,7 @@ function ClientInner() {
         ) : (
           <div className="mt-4 grid grid-cols-2 gap-2">
             {photos.length === 0 ? (
-              <p className="card col-span-2 text-stone-500">مفيش صور مشاركة.</p>
+              <p className="card col-span-2 text-stone-500">مفيش صور ظاهرة للعميل.</p>
             ) : (
               photos.map((photo) => (
                 <div key={photo.id} className="card p-2">

@@ -1,100 +1,98 @@
 "use client";
 
-import { FormEvent, Suspense, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, Suspense, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { readCompressedImage } from "@/lib/images";
+import { dayToIso } from "@/lib/money";
 import { useStore } from "@/lib/store";
 
 type Step = "choose" | "payment" | "expense";
+
+function todayInput() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
+}
 
 function MoneyInner() {
   const params = useSearchParams();
   const router = useRouter();
   const { state, addTransaction } = useStore();
-  const presetProject = params.get("projectId") || state.projects[0]?.id || "";
+  const presetProject = params.get("projectId") || "";
   const [step, setStep] = useState<Step>("choose");
-  const [projectId, setProjectId] = useState(presetProject);
+  const [projectId, setProjectId] = useState(
+    presetProject || state.projects[0]?.id || "",
+  );
   const [amount, setAmount] = useState("");
-  const [notes, setNotes] = useState("");
-  const [date, setDate] = useState(() => {
-    const d = new Date();
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-    return d.toISOString().slice(0, 16);
-  });
+  const [item, setItem] = useState("");
+  const [date, setDate] = useState(todayInput);
   const [categoryId, setCategoryId] = useState(state.categories[0]?.id || "");
   const [attachment, setAttachment] = useState<string | undefined>();
   const [contractorId, setContractorId] = useState("");
   const [supplierId, setSupplierId] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  const project = useMemo(
-    () => state.projects.find((p) => p.id === projectId),
-    [state.projects, projectId],
-  );
+  const project = state.projects.find((item) => item.id === projectId);
+  const backHref = projectId
+    ? `/project/?id=${encodeURIComponent(projectId)}`
+    : "/projects/";
 
-  function savePayment(e: FormEvent) {
-    e.preventDefault();
-    if (!projectId || !amount) return;
+  function save(type: "client_payment" | "expense") {
+    if (!projectId || Number(amount) <= 0) return;
+    if (type === "expense" && (!item.trim() || !categoryId)) return;
     addTransaction({
       projectId,
-      type: "client_payment",
+      type,
       amount: Number(amount),
-      date: new Date(date).toISOString(),
-      notes: notes.trim() || undefined,
+      date: dayToIso(date),
+      notes: item.trim() || undefined,
+      categoryId: type === "expense" ? categoryId : undefined,
       attachmentDataUrl: attachment,
+      contractorId: type === "expense" && contractorId ? contractorId : undefined,
+      supplierId: type === "expense" && supplierId ? supplierId : undefined,
     });
-    router.push(`/project/?id=${encodeURIComponent(projectId)}`);
+    router.push(`/project/?id=${encodeURIComponent(projectId)}&tab=finance`);
   }
 
-  function saveExpense(e: FormEvent) {
-    e.preventDefault();
-    if (!projectId || !amount || !categoryId) return;
-    addTransaction({
-      projectId,
-      type: "expense",
-      amount: Number(amount),
-      date: new Date(date).toISOString(),
-      notes: notes.trim() || undefined,
-      categoryId,
-      attachmentDataUrl: attachment,
-      contractorId: contractorId || undefined,
-      supplierId: supplierId || undefined,
-    });
-    router.push(`/project/?id=${encodeURIComponent(projectId)}`);
-  }
-
-  function onFile(file?: File | null) {
+  async function onFile(file?: File | null) {
     if (!file) {
       setAttachment(undefined);
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => setAttachment(String(reader.result || ""));
-    reader.readAsDataURL(file);
+    setBusy(true);
+    try {
+      setAttachment(await readCompressedImage(file));
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (step === "choose") {
     return (
       <div className="mx-auto min-h-dvh max-w-lg px-4 py-6">
-        <div className="mb-6 text-center">
-          <p className="text-sm font-bold text-[var(--brand)]">دفتر</p>
-          <h1 className="mt-3 text-2xl font-black">حركة فلوس عايز تسجلها؟</h1>
-        </div>
-        <div className="space-y-3">
+        <p className="text-sm font-bold text-[var(--brand)]">دفتر</p>
+        <h1 className="mt-3 text-2xl font-black">عايز تسجل إيه؟</h1>
+        {project ? (
+          <p className="mt-2 text-sm text-stone-500">{project.name}</p>
+        ) : null}
+        <div className="mt-6 space-y-3">
           <button
             type="button"
             className="card w-full text-right text-lg font-bold"
             onClick={() => setStep("payment")}
           >
-            استلمت من العميل؟
+            استلمت فلوس من العميل
           </button>
           <button
             type="button"
             className="card w-full text-right text-lg font-bold"
             onClick={() => setStep("expense")}
           >
-            اشتريت للموقع؟
+            صرفت فلوس في الموقع
           </button>
-          <Link href="/projects/" className="btn btn-secondary w-full">
+          <Link href={backHref} className="btn btn-secondary w-full">
             رجوع
           </Link>
         </div>
@@ -113,121 +111,142 @@ function MoneyInner() {
       >
         رجوع
       </button>
-      <h1 className="mb-4 text-xl font-black">
-        {isPayment ? "تسجيل مدفوعات من العميل" : "تسجيل مصروف للموقع"}
+      <h1 className="mb-1 text-xl font-black">
+        {isPayment ? "دفعة من العميل" : "مصروف للموقع"}
       </h1>
+      {project ? <p className="mb-4 text-sm text-stone-500">{project.name}</p> : null}
+
       <form
-        onSubmit={isPayment ? savePayment : saveExpense}
+        onSubmit={(e: FormEvent) => {
+          e.preventDefault();
+          save(isPayment ? "client_payment" : "expense");
+        }}
         className="space-y-3"
       >
-        <label className="block text-sm font-semibold">
-          المشروع
-          <select
-            className="input mt-1"
-            value={projectId}
-            onChange={(e) => setProjectId(e.target.value)}
-            required
-          >
-            {state.projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        {presetProject ? null : (
+          <label className="block text-sm font-semibold">
+            المشروع
+            <select
+              className="input mt-1"
+              value={projectId}
+              onChange={(e) => setProjectId(e.target.value)}
+              required
+            >
+              {state.projects.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <label className="block text-sm font-semibold">
-          المبلغ <span className="text-rose-600">مطلوب</span>
+          المبلغ
           <input
             className="input mt-1"
             type="number"
             inputMode="numeric"
             min="1"
+            placeholder="اكتب المبلغ"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             required
+            autoFocus
           />
         </label>
 
-        {!isPayment ? (
+        {isPayment ? (
           <label className="block text-sm font-semibold">
-            البند
-            <select
+            البيان <span className="font-normal text-stone-400">اختياري</span>
+            <input
               className="input mt-1"
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              required
-            >
-              {state.categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+              placeholder="مثلاً: دفعة تحت الحساب"
+              value={item}
+              onChange={(e) => setItem(e.target.value)}
+            />
           </label>
-        ) : null}
-
-        {!isPayment ? (
-          <div className="grid grid-cols-1 gap-3">
+        ) : (
+          <>
             <label className="block text-sm font-semibold">
-              مقاول (اختياري)
+              البند
+              <input
+                className="input mt-1"
+                placeholder="مثلاً: بلاط صالة أو أجرة نقاشة"
+                value={item}
+                onChange={(e) => setItem(e.target.value)}
+                required
+              />
+            </label>
+            <label className="block text-sm font-semibold">
+              الفئة
+              <select
+                className="input mt-1"
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                required
+              >
+                {state.categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm font-semibold">
+              مقاول <span className="font-normal text-stone-400">اختياري</span>
               <select
                 className="input mt-1"
                 value={contractorId}
                 onChange={(e) => setContractorId(e.target.value)}
               >
-                <option value="">—</option>
-                {state.contractors.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
+                <option value="">من غير مقاول</option>
+                {state.contractors.map((person) => (
+                  <option key={person.id} value={person.id}>
+                    {person.name}
                   </option>
                 ))}
               </select>
             </label>
             <label className="block text-sm font-semibold">
-              مورد (اختياري)
+              مورد <span className="font-normal text-stone-400">اختياري</span>
               <select
                 className="input mt-1"
                 value={supplierId}
                 onChange={(e) => setSupplierId(e.target.value)}
               >
-                <option value="">—</option>
-                {state.suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
+                <option value="">من غير مورد</option>
+                {state.suppliers.map((person) => (
+                  <option key={person.id} value={person.id}>
+                    {person.name}
                   </option>
                 ))}
               </select>
             </label>
-          </div>
-        ) : null}
+          </>
+        )}
 
         <label className="block text-sm font-semibold">
-          التاريخ والوقت <span className="text-rose-600">مطلوب</span>
+          التاريخ
           <input
             className="input mt-1"
-            type="datetime-local"
+            type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
             required
           />
         </label>
 
-        <label className="block text-sm font-semibold">
-          ملاحظات <span className="text-stone-400">اختياري</span>
-          <textarea
-            className="input mt-1 min-h-24"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
-        </label>
-
         <div>
           <p className="mb-1 text-sm font-semibold">
-            الفواتير والمرفقات <span className="text-stone-400">اختياري</span>
+            المرفق <span className="font-normal text-stone-400">اختياري</span>
           </p>
           <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-stone-300 bg-white px-4 py-8 text-sm text-stone-600">
-            {attachment ? "تم إرفاق صورة — اضغط للتغيير" : "+ إضافة مرفق"}
+            {busy
+              ? "بيتحفظ المرفق…"
+              : attachment
+                ? "الصورة اتضافت — اضغط لو عايز تغيّرها"
+                : "صورة الفاتورة أو التحويل"}
             <input
               type="file"
               accept="image/*"
@@ -246,22 +265,12 @@ function MoneyInner() {
           ) : null}
         </div>
 
-        {project ? (
-          <p className="text-xs text-stone-500">المشروع الحالي: {project.name}</p>
-        ) : null}
-
-        <div className="flex gap-2 pt-2">
-          <button type="submit" className="btn btn-primary flex-1">
-            {isPayment ? "تسجيل المدفوعات" : "تسجيل المصروف"}
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => router.back()}
-          >
-            إلغاء
-          </button>
-        </div>
+        <button type="submit" className="btn btn-primary w-full" disabled={busy}>
+          {isPayment ? "حفظ الدفعة" : "حفظ المصروف"}
+        </button>
+        <Link href={backHref} className="btn btn-secondary w-full">
+          إلغاء
+        </Link>
       </form>
     </div>
   );

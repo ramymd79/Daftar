@@ -20,7 +20,13 @@ export default function LoginPage() {
     setError("كلمة السر غلط. جرّب كلمة تجربة العرض.");
   }
 
-  if (state.unlocked) return null;
+  if (state.unlocked) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center text-stone-500">
+        جاري فتح المشاريع…
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center px-6">

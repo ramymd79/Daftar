@@ -4,14 +4,14 @@ import Link from "next/link";
 import { Suspense, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { expensesByCategory, projectTotals } from "@/lib/logic";
-import { formatMoney } from "@/lib/money";
+import { formatDay, formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
 
 function PrintInner() {
   const params = useSearchParams();
   const { state } = useStore();
   const projectId = params.get("id") || "";
-  const project = state.projects.find((p) => p.id === projectId);
+  const project = state.projects.find((item) => item.id === projectId);
   const totals = useMemo(
     () => (project ? projectTotals(state, project.id) : null),
     [state, project],
@@ -25,13 +25,14 @@ function PrintInner() {
     return <div className="p-6">المشروع مش موجود.</div>;
   }
 
-  const client = state.clients.find((c) => c.id === project.clientId);
+  const client = state.clients.find((item) => item.id === project.clientId);
+  const agreementLeft = Math.max(project.contractTotal - totals.received, 0);
 
   return (
     <div className="mx-auto max-w-3xl bg-white px-4 py-6 text-stone-900">
       <div className="no-print mb-4 flex flex-wrap gap-2">
         <button type="button" className="btn btn-primary" onClick={() => window.print()}>
-          طباعة / حفظ PDF
+          طباعة أو حفظ PDF
         </button>
         <Link
           href={`/project/?id=${encodeURIComponent(project.id)}`}
@@ -48,32 +49,37 @@ function PrintInner() {
           العميل: {client?.name || "—"}
           {project.address ? ` · ${project.address}` : ""}
         </p>
-        <p className="text-xs text-stone-500">
-          تاريخ الطباعة: {new Date().toLocaleString("ar-EG")}
-        </p>
+        <p className="text-xs text-stone-500">تاريخ الطباعة: {formatDay(new Date().toISOString())}</p>
       </header>
 
       <section className="mb-6 grid grid-cols-3 gap-3 text-center">
         <div className="rounded-xl bg-emerald-50 p-3">
-          <p className="text-xs">المستلم</p>
+          <p className="text-xs">مستلم</p>
           <p className="text-xl font-bold">{formatMoney(totals.received)}</p>
         </div>
         <div className="rounded-xl bg-sky-50 p-3">
-          <p className="text-xs">المصروف</p>
+          <p className="text-xs">مصروف</p>
           <p className="text-xl font-bold">{formatMoney(totals.spent)}</p>
         </div>
-        <div className="rounded-xl bg-rose-50 p-3">
-          <p className="text-xs">المتبقي</p>
+        <div className="rounded-xl bg-stone-100 p-3">
+          <p className="text-xs">متبقي</p>
           <p className="text-xl font-bold">{formatMoney(totals.remaining)}</p>
         </div>
       </section>
 
+      {project.contractTotal > 0 ? (
+        <p className="mb-6 text-sm text-stone-600">
+          قيمة الاتفاق {formatMoney(project.contractTotal)} · لسه على العميل{" "}
+          {formatMoney(agreementLeft)}
+        </p>
+      ) : null}
+
       <section className="mb-6">
-        <h2 className="mb-2 font-bold">ملخص المصروفات حسب البند</h2>
+        <h2 className="mb-2 font-bold">المصروف حسب الفئة</h2>
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b border-stone-200 text-right">
-              <th className="py-2">البند</th>
+              <th className="py-2">الفئة</th>
               <th className="py-2">النسبة</th>
               <th className="py-2">المبلغ</th>
             </tr>
@@ -82,7 +88,7 @@ function PrintInner() {
             {byCategory.map((row) => (
               <tr key={row.category.id} className="border-b border-stone-100">
                 <td className="py-2">{row.category.name}</td>
-                <td className="py-2">{row.pct.toFixed(1)}%</td>
+                <td className="py-2">{row.pct.toFixed(0)}%</td>
                 <td className="py-2">{formatMoney(row.amount)}</td>
               </tr>
             ))}
@@ -102,20 +108,20 @@ function PrintInner() {
             </tr>
           </thead>
           <tbody>
-            {totals.txs.map((tx) => {
-              const cat = state.categories.find((c) => c.id === tx.categoryId);
+            {[...totals.txs].reverse().map((tx) => {
+              const category = state.categories.find((item) => item.id === tx.categoryId);
               return (
                 <tr key={tx.id} className="border-b border-stone-100">
+                  <td className="py-2">{formatDay(tx.date)}</td>
                   <td className="py-2">
-                    {new Date(tx.date).toLocaleDateString("ar-EG")}
+                    {tx.notes || "—"}
+                    {tx.attachmentDataUrl ? " · مرفق" : ""}
                   </td>
-                  <td className="py-2">{tx.notes || "—"}</td>
                   <td className="py-2">
-                    {tx.type === "client_payment"
-                      ? "دفعة عميل"
-                      : cat?.name || "مصروف"}
+                    {tx.type === "client_payment" ? "دفعة عميل" : category?.name || "مصروف"}
                   </td>
                   <td className="py-2 font-semibold">
+                    {tx.type === "client_payment" ? "+" : "−"}
                     {formatMoney(tx.amount)}
                   </td>
                 </tr>

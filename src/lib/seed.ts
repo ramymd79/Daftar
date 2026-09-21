@@ -57,7 +57,6 @@ export function createSeedState(): AppState {
         clientId: "cli_ahmed",
         status: "active",
         contractTotal: 2050000,
-        supervisionPct: 12,
         createdAt: "2024-08-01T10:00:00.000Z",
       },
       {
@@ -67,7 +66,6 @@ export function createSeedState(): AppState {
         clientId: "cli_mona",
         status: "active",
         contractTotal: 780000,
-        supervisionPct: 10,
         createdAt: "2024-09-10T10:00:00.000Z",
       },
     ],

@@ -14,7 +14,6 @@ export type Project = {
   clientId: string;
   status: ProjectStatus;
   contractTotal: number;
-  supervisionPct: number;
   createdAt: string;
 };
 

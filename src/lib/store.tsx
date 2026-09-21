@@ -11,14 +11,26 @@ import {
 import { createSeedState, DEMO_PASSWORD } from "./seed";
 import type {
   AppState,
+  Category,
   GalleryPhoto,
   Person,
   Project,
+  ProjectStatus,
   Transaction,
 } from "./types";
 import { newId } from "./ids";
 
 const STORAGE_KEY = "daftar.v1";
+
+const CATEGORY_COLORS = [
+  "#e67e22",
+  "#8e44ad",
+  "#2980b9",
+  "#16a085",
+  "#c0392b",
+  "#7f8c8d",
+  "#2c3e50",
+];
 
 type StoreApi = {
   ready: boolean;
@@ -31,14 +43,25 @@ type StoreApi = {
     address?: string;
     clientId: string;
     contractTotal: number;
-    supervisionPct: number;
   }) => string;
+  updateProject: (
+    id: string,
+    patch: {
+      name?: string;
+      address?: string;
+      clientId?: string;
+      status?: ProjectStatus;
+      contractTotal?: number;
+    },
+  ) => void;
   addClient: (input: { name: string; phone?: string }) => string;
   addContractor: (input: { name: string; phone?: string }) => string;
   addSupplier: (input: { name: string; phone?: string }) => string;
   addTransaction: (
     input: Omit<Transaction, "id" | "createdAt"> & { id?: string },
   ) => string;
+  deleteTransaction: (id: string) => void;
+  addCategory: (name: string) => string;
   addPhoto: (input: {
     projectId: string;
     dataUrl: string;
@@ -46,6 +69,7 @@ type StoreApi = {
     sharedWithClient?: boolean;
   }) => string;
   updatePhotoShare: (photoId: string, sharedWithClient: boolean) => void;
+  deletePhoto: (photoId: string) => void;
 };
 
 const StoreContext = createContext<StoreApi | null>(null);
@@ -107,7 +131,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           clientId: input.clientId,
           status: "active",
           contractTotal: input.contractTotal,
-          supervisionPct: input.supervisionPct,
           createdAt: new Date().toISOString(),
         };
         setState((prev) => ({
@@ -115,6 +138,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           projects: [project, ...prev.projects],
         }));
         return id;
+      },
+      updateProject: (id, patch) => {
+        setState((prev) => ({
+          ...prev,
+          projects: prev.projects.map((project) => {
+            if (project.id !== id) return project;
+            return {
+              ...project,
+              ...patch,
+              name: patch.name !== undefined ? patch.name.trim() : project.name,
+              address:
+                patch.address !== undefined
+                  ? patch.address.trim() || undefined
+                  : project.address,
+            };
+          }),
+        }));
       },
       addClient: (input) => {
         const id = newId("cli");
@@ -165,6 +205,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }));
         return id;
       },
+      deleteTransaction: (id) => {
+        setState((prev) => ({
+          ...prev,
+          transactions: prev.transactions.filter((tx) => tx.id !== id),
+        }));
+      },
+      addCategory: (name) => {
+        const trimmed = name.trim();
+        const id = newId("cat");
+        const category: Category = {
+          id,
+          name: trimmed,
+          color: CATEGORY_COLORS[Math.floor(Math.random() * CATEGORY_COLORS.length)],
+        };
+        setState((prev) => {
+          if (!trimmed) return prev;
+          if (prev.categories.some((item) => item.name === trimmed)) return prev;
+          const color =
+            CATEGORY_COLORS[prev.categories.length % CATEGORY_COLORS.length];
+          return {
+            ...prev,
+            categories: [...prev.categories, { ...category, color }],
+          };
+        });
+        return id;
+      },
       addPhoto: (input) => {
         const id = newId("ph");
         const photo: GalleryPhoto = {
@@ -184,6 +250,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           photos: prev.photos.map((p) =>
             p.id === photoId ? { ...p, sharedWithClient } : p,
           ),
+        }));
+      },
+      deletePhoto: (photoId) => {
+        setState((prev) => ({
+          ...prev,
+          photos: prev.photos.filter((photo) => photo.id !== photoId),
         }));
       },
     }),

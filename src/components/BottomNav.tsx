@@ -15,7 +15,8 @@ export function BottomNav() {
   const pathname = usePathname() || "";
   const hide =
     pathname === "/" ||
-    pathname.startsWith("/client") ||
+    pathname === "/client" ||
+    pathname.startsWith("/client/") ||
     pathname.startsWith("/print") ||
     pathname.startsWith("/money");
 
