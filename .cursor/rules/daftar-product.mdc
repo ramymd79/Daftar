@@ -1,0 +1,50 @@
+---
+description: Daftar product identity, scope, and agent handoff for every session
+alwaysApply: true
+---
+
+# Daftar
+
+Write the product name as `Daftar` in English. In the UI Arabic label use `دفتر`. Never confuse Daftar with SiteFlow.
+
+SiteFlow is a separate project. Never edit SiteFlow files, remotes, or behavior from Daftar work.
+
+## Product idea
+
+Finishing-contractor project money notebook — same simplicity spirit as مُعَمِّر (Muamer): track what the client paid, what was spent on site, and what remains, with photos and a printable statement.
+
+## Core (in scope)
+
+- Client payments into a project
+- Site expenses with optional attachments
+- Categories / items for spending
+- Money summary: received / spent / remaining
+- Photos gallery
+- Read-only client portal
+- PDF / print statement
+
+## Navigation
+
+- Bottom nav: مشاريع، عملاء، مقاولون، موردون، إعدادات
+- Project tabs: مالية، مقاولون، موردون، معرض، إعدادات
+
+## Out of scope
+
+- Not an ERP
+- Not SiteFlow advances / supervisor / finance workflow
+- Not BOQ / IPC / variations as the primary product
+
+## UX
+
+- Arabic UI, RTL
+- Simple colloquial Egyptian Arabic copy
+- One job per screen (Muamer simplicity)
+
+## Demo
+
+- Live: https://ramymd79.github.io/Daftar/
+- Password: `demo1234`
+
+## Communication
+
+If user prefs / `AGENTS.md` say so: reply to Ramy in Arabic with complete RTL sentences; keep code, paths, URLs, and the name `Daftar` in original form.
