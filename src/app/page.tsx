@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { DEMO_PASSWORD } from "@/lib/seed";
 import { useStore } from "@/lib/store";
@@ -60,6 +61,9 @@ export default function LoginPage() {
           كلمة السر: <span className="font-mono">{DEMO_PASSWORD}</span>
         </p>
       </form>
+      <Link href="/guide/" className="mt-4 block text-center text-sm font-bold text-[var(--brand)]">
+        شوف إزاي تستخدمه
+      </Link>
     </div>
   );
 }

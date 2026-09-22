@@ -19,7 +19,8 @@ export function BottomNav() {
     pathname.startsWith("/client/") ||
     pathname.startsWith("/print") ||
     pathname.startsWith("/money") ||
-    pathname.startsWith("/agreement");
+    pathname.startsWith("/agreement") ||
+    pathname.startsWith("/guide");
 
   if (hide) return null;
 

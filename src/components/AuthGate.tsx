@@ -9,16 +9,17 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname() || "";
   const isLogin = pathname === "/" || pathname === "";
+  const isGuide = pathname === "/guide" || pathname.startsWith("/guide/");
 
   useEffect(() => {
     if (!ready) return;
-    if (!state.unlocked && !isLogin) {
+    if (!state.unlocked && !isLogin && !isGuide) {
       router.replace("/");
     }
     if (state.unlocked && isLogin) {
       router.replace("/projects/");
     }
-  }, [ready, state.unlocked, isLogin, router]);
+  }, [ready, state.unlocked, isLogin, isGuide, router]);
 
   if (!ready) {
     return (
