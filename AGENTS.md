@@ -7,6 +7,7 @@
 
 - Always-on product rule: `.cursor/rules/daftar-product.mdc`
 - Fuller Arabic brief: `docs/PRODUCT.md`
+- Screen work still to build, from the Muamer tour: `docs/MUAMER.md`
 - Live demo: https://ramymd79.github.io/Daftar/ (password `demo1234`)
 
 ## Product in one line
