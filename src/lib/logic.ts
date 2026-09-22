@@ -80,11 +80,11 @@ export type CategorySpend = {
   labor: number;
 };
 
-export function expensesByCategory(
-  state: AppState,
-  projectId: string,
-): CategorySpend[] {
-  const { spent, txs } = projectMoney(state, projectId);
+export function categorySpend(categories: Category[], txs: Transaction[]): CategorySpend[] {
+  const spent = sumBy(
+    txs.filter((tx) => tx.type === "expense"),
+    (tx) => expenseBreakdown(tx).total,
+  );
   const map = new Map<string, { purchase: number; transport: number; labor: number }>();
   for (const tx of txs) {
     if (tx.type !== "expense") continue;
@@ -96,7 +96,7 @@ export function expensesByCategory(
     row.labor += parts.labor;
     map.set(key, row);
   }
-  return state.categories
+  return categories
     .map((category) => {
       const row = map.get(category.id) || { purchase: 0, transport: 0, labor: 0 };
       const amount = row.purchase + row.transport + row.labor;
@@ -109,6 +109,56 @@ export function expensesByCategory(
     })
     .filter((row) => row.amount > 0)
     .sort((a, b) => b.amount - a.amount);
+}
+
+export function expensesByCategory(state: AppState, projectId: string): CategorySpend[] {
+  return categorySpend(state.categories, projectTransactions(state, projectId));
+}
+
+export function txDayKey(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso.slice(0, 10);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+export function txPartyName(state: AppState, tx: Transaction): string {
+  if (tx.supplierId) return state.suppliers.find((item) => item.id === tx.supplierId)?.name || "";
+  if (tx.contractorId) return state.contractors.find((item) => item.id === tx.contractorId)?.name || "";
+  return "";
+}
+
+export function txTypeLabel(tx: Transaction): string {
+  if (tx.type === "client_payment") return tx.paymentClass === "supervision" ? "إشراف" : "دفعة عميل";
+  if (tx.expenseKind === "labor" || tx.contractorId) return "مصنعيات";
+  return "شراء مواد";
+}
+
+export function txTitle(tx: Transaction, categoryName?: string): string {
+  return tx.notes || (tx.type === "client_payment" ? "دفعة من العميل" : categoryName || "مصروف");
+}
+
+/** ملخص الكشف من الحركات المعروضة. مبلغ الإشراف الثابت يتحسب على الكشف الكامل بس. */
+export function statementMoney(project: Project | undefined, txs: Transaction[], chargeFixedFee: boolean) {
+  const received = sumBy(
+    txs.filter((tx) => tx.type === "client_payment"),
+    (tx) => tx.amount,
+  );
+  const spent = sumBy(
+    txs.filter((tx) => tx.type === "expense"),
+    (tx) => expenseBreakdown(tx).total,
+  );
+  const supervisionDue =
+    project?.contractType === "fixed" && !chargeFixedFee ? 0 : supervisionDueOf(project, spent);
+  const remaining = received - spent - supervisionDue;
+  return {
+    received,
+    spent,
+    supervisionDue,
+    remaining,
+    uncovered: remaining < 0 ? Math.abs(remaining) : 0,
+  };
 }
 
 export function statusLabel(status: ProjectStatus | string): string {
@@ -177,21 +227,38 @@ export function txKind(tx: Transaction): Exclude<LedgerKind, "all"> {
   return "purchase";
 }
 
-export function filterTransactions(
-  state: AppState,
-  projectId: string,
-  options: { query?: string; sort?: LedgerSort; kind?: LedgerKind; categoryId?: string },
-): Transaction[] {
+export type LedgerQuery = {
+  query?: string;
+  sort?: LedgerSort;
+  kind?: LedgerKind;
+  categoryId?: string;
+  from?: string;
+  to?: string;
+  min?: number | null;
+  max?: number | null;
+};
+
+export function filterTransactions(state: AppState, projectId: string, options: LedgerQuery): Transaction[] {
   const query = (options.query || "").trim();
   const sort = options.sort || "newest";
   const kind = options.kind || "all";
   const categoryId = options.categoryId || "";
+  const from = options.from || "";
+  const to = options.to || "";
+  const min = options.min;
+  const max = options.max;
   let rows = projectTransactions(state, projectId).filter((tx) => {
     if (kind !== "all" && txKind(tx) !== kind) return false;
     if (categoryId && tx.categoryId !== categoryId) return false;
+    const day = txDayKey(tx.date);
+    if (from && day < from) return false;
+    if (to && day > to) return false;
+    const amount = txAmount(tx);
+    if (typeof min === "number" && Number.isFinite(min) && amount < min) return false;
+    if (typeof max === "number" && Number.isFinite(max) && amount > max) return false;
     if (!query) return true;
     const category = state.categories.find((item) => item.id === tx.categoryId);
-    const haystack = `${tx.notes || ""} ${tx.privateNotes || ""} ${category?.name || ""}`;
+    const haystack = `${tx.notes || ""} ${tx.privateNotes || ""} ${category?.name || ""} ${txPartyName(state, tx)}`;
     return haystack.includes(query);
   });
   const categoryName = (tx: Transaction) =>

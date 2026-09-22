@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { ContractBudgetFields } from "@/components/ContractBudgetFields";
 import { FinanceBoard } from "@/components/FinanceBoard";
+import { Ledger } from "@/components/Ledger";
 import { ProjectTabs, type ProjectTab } from "@/components/ProjectTabs";
 import { readCompressedImage } from "@/lib/images";
 import { expenseBreakdown, expensesForPerson, statusLabel } from "@/lib/logic";
@@ -59,12 +60,7 @@ function ProjectInner() {
       {tab === "finance" ? (
         <div className="mt-3 space-y-3">
           <FinanceBoard state={state} projectId={project.id} />
-          <Link
-            href={`/ledger/?id=${encodeURIComponent(project.id)}`}
-            className="btn btn-secondary w-full"
-          >
-            قائمة الحركات
-          </Link>
+          <Ledger state={state} projectId={project.id} />
         </div>
       ) : null}
 
