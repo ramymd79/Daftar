@@ -161,6 +161,9 @@ function ClientInner() {
                   <li key={tx.id} className="flex justify-between gap-3 py-2">
                     <span>
                       {tx.notes || (tx.type === "client_payment" ? "دفعة" : "مصروف")}
+                      {project.showClientTxNotes && tx.privateNotes ? (
+                        <span className="block text-xs text-stone-600">{tx.privateNotes}</span>
+                      ) : null}
                       <span className="block text-xs text-stone-500">{formatDay(tx.date)}</span>
                     </span>
                     <span className="font-bold">

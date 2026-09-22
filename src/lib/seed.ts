@@ -2,6 +2,11 @@ import type { AppState, ExpenseKind } from "./types";
 
 export const DEMO_PASSWORD = "demo1234";
 
+function receiptImage(label: string) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160"><rect fill="#f3e6dc" width="100%" height="100%"/><text x="50%" y="54%" text-anchor="middle" fill="#5c3b2e" font-size="28" font-family="Tahoma">${label}</text></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
 export function createSeedState(): AppState {
   return {
     unlocked: false,
@@ -47,6 +52,8 @@ export function createSeedState(): AppState {
       { id: "cat_paint", name: "نقاشة", color: "#2980b9" },
       { id: "cat_plumb", name: "سباكة", color: "#16a085" },
       { id: "cat_plaster", name: "محارة", color: "#d4a017" },
+      { id: "cat_gypsum", name: "جبس", color: "#7d8c6a" },
+      { id: "cat_marble", name: "رخام", color: "#8d99ae" },
       { id: "cat_elec", name: "كهرباء", color: "#c0392b" },
       { id: "cat_other", name: "متنوع", color: "#7f8c8d" },
     ],
@@ -64,6 +71,7 @@ export function createSeedState(): AppState {
         showClientMoney: true,
         showClientGallery: true,
         showClientPrivatePhotos: false,
+        showClientTxNotes: false,
         createdAt: "2024-08-01T10:00:00.000Z",
       },
       {
@@ -79,6 +87,7 @@ export function createSeedState(): AppState {
         showClientMoney: true,
         showClientGallery: true,
         showClientPrivatePhotos: false,
+        showClientTxNotes: false,
         createdAt: "2024-09-10T10:00:00.000Z",
       },
     ],
@@ -112,7 +121,9 @@ export function createSeedState(): AppState {
         storageAmount: 3000,
         date: "2024-08-12T09:00:00.000Z",
         notes: "شراء بلاط",
+        privateNotes: "سعر المتر قبل الخصم",
         categoryId: "cat_tiles",
+        attachmentDataUrl: receiptImage("فاتورة"),
         expenseKind: "purchase" satisfies ExpenseKind,
         supplierId: "sup_tiles",
         createdAt: "2024-08-12T09:00:00.000Z",
@@ -125,6 +136,7 @@ export function createSeedState(): AppState {
         date: "2024-08-20T16:00:00.000Z",
         notes: "مصنعيات بلاط",
         categoryId: "cat_tiles",
+        attachmentDataUrl: receiptImage("سند"),
         expenseKind: "labor",
         contractorId: "ctr_naggash",
         createdAt: "2024-08-20T16:00:00.000Z",
@@ -139,6 +151,7 @@ export function createSeedState(): AppState {
         date: "2024-08-22T10:00:00.000Z",
         notes: "خشب أبواب",
         categoryId: "cat_wood",
+        attachmentDataUrl: receiptImage("فاتورة"),
         expenseKind: "purchase",
         createdAt: "2024-08-22T10:00:00.000Z",
       },
@@ -150,6 +163,7 @@ export function createSeedState(): AppState {
         date: "2024-08-25T15:00:00.000Z",
         notes: "خامات سباكة",
         categoryId: "cat_plumb",
+        attachmentDataUrl: receiptImage("فاتورة"),
         expenseKind: "purchase",
         createdAt: "2024-08-25T15:00:00.000Z",
       },
@@ -161,6 +175,7 @@ export function createSeedState(): AppState {
         date: "2024-08-26T15:00:00.000Z",
         notes: "مصنعية نقاشة",
         categoryId: "cat_paint",
+        attachmentDataUrl: receiptImage("سند"),
         expenseKind: "labor",
         contractorId: "ctr_naggash",
         createdAt: "2024-08-26T15:00:00.000Z",
@@ -183,6 +198,7 @@ export function createSeedState(): AppState {
         date: "2024-09-15T12:00:00.000Z",
         notes: "محارة وكهرباء ابتدائي",
         categoryId: "cat_elec",
+        attachmentDataUrl: receiptImage("فاتورة"),
         expenseKind: "labor",
         createdAt: "2024-09-15T12:00:00.000Z",
       },
@@ -210,8 +226,8 @@ export function createSeedState(): AppState {
         id: "agr_naggash",
         projectId: "prj_maadi",
         contractorId: "ctr_naggash",
-        amount: 30000,
-        notes: "نقاشة الدور الأول",
+        amount: 51000,
+        notes: "نقاشة الدور الأول ومصنعيات البلاط",
         createdAt: "2024-08-18T10:00:00.000Z",
       },
       {

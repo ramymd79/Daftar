@@ -23,7 +23,7 @@ import type {
 } from "./types";
 import { newId } from "./ids";
 
-const STORAGE_KEY = "daftar.v5";
+const STORAGE_KEY = "daftar.v6";
 
 const CATEGORY_COLORS = [
   "#e67e22",
@@ -64,6 +64,7 @@ type StoreApi = {
       showClientMoney?: boolean;
       showClientGallery?: boolean;
       showClientPrivatePhotos?: boolean;
+      showClientTxNotes?: boolean;
     },
   ) => void;
   addAgreement: (input: {
@@ -127,6 +128,7 @@ function loadState(): AppState {
         showClientMoney: project.showClientMoney !== false,
         showClientGallery: project.showClientGallery !== false,
         showClientPrivatePhotos: project.showClientPrivatePhotos === true,
+        showClientTxNotes: project.showClientTxNotes === true,
       })),
     };
   } catch {
@@ -184,6 +186,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           showClientMoney: true,
           showClientGallery: true,
           showClientPrivatePhotos: false,
+          showClientTxNotes: false,
           createdAt: new Date().toISOString(),
         };
         setState((prev) => ({

@@ -5,7 +5,6 @@ import { FormEvent, Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { FinanceBoard } from "@/components/FinanceBoard";
-import { Ledger } from "@/components/Ledger";
 import { ProjectTabs, type ProjectTab } from "@/components/ProjectTabs";
 import { readCompressedImage } from "@/lib/images";
 import {
@@ -55,11 +54,14 @@ function ProjectInner() {
       <ProjectTabs projectId={project.id} active={tab} />
 
       {tab === "finance" ? (
-        <div className="mt-3">
+        <div className="mt-3 space-y-3">
           <FinanceBoard state={state} projectId={project.id} />
-          <div className="mt-4">
-            <Ledger state={state} projectId={project.id} />
-          </div>
+          <Link
+            href={`/ledger/?id=${encodeURIComponent(project.id)}`}
+            className="btn btn-secondary w-full"
+          >
+            قائمة الحركات
+          </Link>
         </div>
       ) : null}
 
@@ -418,6 +420,7 @@ function ProjectSettingsForm({
       showClientMoney?: boolean;
       showClientGallery?: boolean;
       showClientPrivatePhotos?: boolean;
+      showClientTxNotes?: boolean;
     },
   ) => void;
 }) {
@@ -434,6 +437,7 @@ function ProjectSettingsForm({
   const [showClientPrivatePhotos, setShowClientPrivatePhotos] = useState(
     project.showClientPrivatePhotos === true,
   );
+  const [showClientTxNotes, setShowClientTxNotes] = useState(project.showClientTxNotes === true);
   const [saved, setSaved] = useState(false);
   const clientName = clients.find((client) => client.id === clientId)?.name || "عميل";
 
@@ -449,6 +453,7 @@ function ProjectSettingsForm({
     setShowClientMoney(project.showClientMoney !== false);
     setShowClientGallery(project.showClientGallery !== false);
     setShowClientPrivatePhotos(project.showClientPrivatePhotos === true);
+    setShowClientTxNotes(project.showClientTxNotes === true);
   }, [project]);
 
   function savePortal(patch: {
@@ -456,6 +461,7 @@ function ProjectSettingsForm({
     showClientMoney?: boolean;
     showClientGallery?: boolean;
     showClientPrivatePhotos?: boolean;
+    showClientTxNotes?: boolean;
   }) {
     onSave(project.id, patch);
   }
@@ -532,6 +538,21 @@ function ProjectSettingsForm({
                 عرض الصور الخاصة
               </label>
             ) : null}
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={showClientTxNotes}
+                onChange={(e) => {
+                  setShowClientTxNotes(e.target.checked);
+                  savePortal({ showClientTxNotes: e.target.checked });
+                }}
+              />
+              <span>
+                <span className="block font-semibold">عرض الملاحظات على المعاملات</span>
+                <span className="text-xs text-stone-500">الملاحظات الخاصة تفضل مخفية لو المربع مقفول</span>
+              </span>
+            </label>
           </div>
         ) : null}
         <Link href={`/client/?id=${encodeURIComponent(project.id)}`} className="btn btn-secondary w-full">

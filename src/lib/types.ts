@@ -27,6 +27,7 @@ export type Project = {
   showClientMoney?: boolean;
   showClientGallery?: boolean;
   showClientPrivatePhotos?: boolean;
+  showClientTxNotes?: boolean;
   createdAt: string;
 };
 

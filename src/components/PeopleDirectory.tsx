@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
-import { expensesForPerson, projectTotals } from "@/lib/logic";
+import { expenseBreakdown, expensesForPerson, projectTotals } from "@/lib/logic";
 import { formatDay, formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
 import type { Person } from "@/lib/types";
@@ -59,7 +59,7 @@ export function PeopleDirectory({ kind, title }: { kind: Kind; title: string }) 
     }
     const key = kind === "contractors" ? "contractorId" : "supplierId";
     return expensesForPerson(state, key, person.id).reduce(
-      (sum, tx) => sum + tx.amount,
+      (sum, tx) => sum + (kind === "suppliers" ? expenseBreakdown(tx).total : tx.amount),
       0,
     );
   }
@@ -238,7 +238,9 @@ function PersonDetail({
                     {project?.name || "مشروع"} · {formatDay(tx.date)}
                   </p>
                 </div>
-                <p className="font-bold text-sky-800">{formatMoney(tx.amount)}</p>
+                <p className="font-bold text-sky-800">
+                  {formatMoney(kind === "suppliers" ? expenseBreakdown(tx).total : tx.amount)}
+                </p>
               </li>
             );
           })}

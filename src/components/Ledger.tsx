@@ -44,7 +44,12 @@ export function Ledger({ state, projectId }: { state: AppState; projectId: strin
     [state, projectId, query, sort, kind, categoryId],
   );
   const activeCount = Number(kind !== "all") + Number(Boolean(categoryId)) + Number(sort !== "newest");
-  const printHref = `/print/?id=${encodeURIComponent(projectId)}&sort=${sort}&kind=${kind}&category=${encodeURIComponent(categoryId)}&q=${encodeURIComponent(query)}`;
+  const statementHref = `/print/?id=${encodeURIComponent(projectId)}&sort=${sort}&kind=${kind}&category=${encodeURIComponent(categoryId)}&q=${encodeURIComponent(query)}`;
+  const activeChips = [
+    sort !== "newest" ? sorts.find((item) => item.id === sort)?.label : "",
+    kind !== "all" ? kinds.find((item) => item.id === kind)?.label : "",
+    categoryId ? state.categories.find((item) => item.id === categoryId)?.name : "",
+  ].filter((label): label is string => Boolean(label));
 
   function apply() {
     setSort(draftSort);
@@ -59,6 +64,13 @@ export function Ledger({ state, projectId }: { state: AppState; projectId: strin
     setDraftCategory("");
   }
 
+  function resetApplied() {
+    setSort("newest");
+    setKind("all");
+    setCategoryId("");
+    resetDraft();
+  }
+
   return (
     <section className="space-y-3">
       <input
@@ -67,23 +79,33 @@ export function Ledger({ state, projectId }: { state: AppState; projectId: strin
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
-      <div className="grid grid-cols-2 gap-2">
-        <Link href={printHref} className="btn btn-secondary">
-          تحميل PDF
-        </Link>
-        <button
-          type="button"
-          className="btn border border-[var(--brand)] bg-[#f3e6dc] font-bold text-[var(--brand-dark)]"
-          onClick={() => {
-            setDraftSort(sort);
-            setDraftKind(kind);
-            setDraftCategory(categoryId);
-            setOpen(true);
-          }}
-        >
-          تصفية وفرز{activeCount > 0 ? ` ${activeCount}` : ""}
-        </button>
-      </div>
+      <button
+        type="button"
+        className="btn w-full border border-[var(--brand)] bg-[#f3e6dc] font-bold text-[var(--brand-dark)]"
+        onClick={() => {
+          setDraftSort(sort);
+          setDraftKind(kind);
+          setDraftCategory(categoryId);
+          setOpen(true);
+        }}
+      >
+        تصفية وفرز{activeCount > 0 ? ` ${activeCount}` : ""}
+      </button>
+      {activeChips.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2">
+          {activeChips.map((label) => (
+            <span
+              key={label}
+              className="rounded-full border border-[var(--brand)] bg-[#f3e6dc] px-3 py-1 text-sm font-bold"
+            >
+              {label}
+            </span>
+          ))}
+          <button type="button" className="text-sm font-bold text-[var(--brand)]" onClick={resetApplied}>
+            إعادة تعيين
+          </button>
+        </div>
+      ) : null}
       {rows.length === 0 ? (
         <p className="card text-sm text-stone-500">مفيش حركات بالمواصفات دي.</p>
       ) : (
@@ -119,17 +141,16 @@ export function Ledger({ state, projectId }: { state: AppState; projectId: strin
                     ) : (
                       <span className="grid h-10 w-10 place-items-center rounded-lg bg-stone-100 text-xs">ملف</span>
                     )
-                  ) : (
-                    <span className="grid h-10 w-10 place-items-center rounded-lg bg-stone-50 text-xs text-stone-300">
-                      —
-                    </span>
-                  )}
+                  ) : null}
                 </div>
               </li>
             );
           })}
         </ul>
       )}
+      <Link href={statementHref} className="btn btn-secondary w-full">
+        كشف الحساب
+      </Link>
 
       {open ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-3">

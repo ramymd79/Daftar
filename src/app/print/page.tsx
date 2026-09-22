@@ -96,7 +96,19 @@ function PrintInner() {
               return (
                 <tr key={tx.id} className="border-b border-stone-100">
                   <td className="py-2">{formatDay(tx.date)}</td>
-                  <td className="py-2">{tx.notes || "—"}</td>
+                  <td className="py-2">
+                    <span className="inline-flex items-center gap-2">
+                      {tx.attachmentDataUrl?.startsWith("data:image") ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={tx.attachmentDataUrl}
+                          alt="مرفق"
+                          className="h-8 w-8 rounded object-cover"
+                        />
+                      ) : null}
+                      {tx.notes || "—"}
+                    </span>
+                  </td>
                   <td className="py-2">
                     {tx.type === "client_payment"
                       ? tx.paymentClass === "supervision"
