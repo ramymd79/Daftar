@@ -10,13 +10,6 @@ import type { PaymentClass } from "@/lib/types";
 
 type Step = "choose" | "payment" | "expense";
 
-function todayInput() {
-  const now = new Date();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${now.getFullYear()}-${month}-${day}`;
-}
-
 function nowInput() {
   const now = new Date();
   const pad = (value: number) => String(value).padStart(2, "0");
@@ -33,7 +26,6 @@ function MoneyInner() {
   const [amount, setAmount] = useState("");
   const [item, setItem] = useState("");
   const [privateNotes, setPrivateNotes] = useState("");
-  const [date, setDate] = useState(todayInput);
   const [boughtAt, setBoughtAt] = useState(nowInput);
   const [categoryId, setCategoryId] = useState("");
   const [paymentClass, setPaymentClass] = useState<PaymentClass>("expense");
@@ -54,7 +46,7 @@ function MoneyInner() {
       projectId,
       type: "client_payment",
       amount: Number(amount),
-      date: dayToIso(date),
+      date: dayToIso(boughtAt),
       notes: item.trim() || undefined,
       privateNotes: privateNotes.trim() || undefined,
       paymentClass,
@@ -322,10 +314,13 @@ function MoneyInner() {
 
   return (
     <div className="mx-auto min-h-dvh max-w-lg bg-[var(--bg)] px-4 py-6 pb-10">
-      <button type="button" className="mb-3 text-sm text-stone-500" onClick={() => setStep("choose")}>
-        رجوع
-      </button>
-      <h1 className="mb-4 text-xl font-black">تسجيل مدفوعات من العميل</h1>
+      <div className="mb-4 flex items-center justify-between">
+        <button type="button" className="text-sm text-stone-500" onClick={() => setStep("choose")}>
+          ←
+        </button>
+        <h1 className="text-lg font-black">تسجيل مدفوعات من العميل</h1>
+        <span className="w-6" />
+      </div>
       <form
         onSubmit={(e: FormEvent) => {
           e.preventDefault();
@@ -395,10 +390,21 @@ function MoneyInner() {
         </div>
 
         <label className="block text-sm font-semibold">
-          البيان <span className="font-normal text-stone-400">يظهر للعميل</span>
+          التاريخ والوقت <span className="text-rose-600">مطلوب</span>
           <input
             className="input mt-1"
-            placeholder="مثلاً: دفعة تحت الحساب"
+            type="datetime-local"
+            value={boughtAt}
+            onChange={(e) => setBoughtAt(e.target.value)}
+            required
+          />
+        </label>
+
+        <label className="block text-sm font-semibold">
+          ملاحظات <span className="font-normal text-stone-400">اختياري</span>
+          <input
+            className="input mt-1"
+            placeholder="ملاحظات إضافية عن المدفوعات..."
             value={item}
             onChange={(e) => setItem(e.target.value)}
           />
@@ -413,20 +419,9 @@ function MoneyInner() {
           />
         </label>
 
-        <label className="block text-sm font-semibold">
-          التاريخ
-          <input
-            className="input mt-1"
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            required
-          />
-        </label>
-
         <div>
           <p className="mb-1 text-sm font-semibold">
-            المرفقات <span className="font-normal text-stone-400">اختياري</span>
+            الفواتير والمرفقات <span className="font-normal text-stone-400">اختياري</span>
           </p>
           <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-stone-300 bg-white px-4 py-8 text-sm text-stone-600">
             {busy ? "بيتحفظ المرفق…" : attachment ? "الصورة اتضافت" : "صورة الفاتورة أو التحويل"}

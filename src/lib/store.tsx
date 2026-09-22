@@ -11,6 +11,7 @@ import {
 import { createSeedState, DEMO_PASSWORD } from "./seed";
 import type {
   Agreement,
+  Album,
   AppState,
   Category,
   ContractType,
@@ -22,7 +23,7 @@ import type {
 } from "./types";
 import { newId } from "./ids";
 
-const STORAGE_KEY = "daftar.v3";
+const STORAGE_KEY = "daftar.v5";
 
 const CATEGORY_COLORS = [
   "#e67e22",
@@ -59,6 +60,7 @@ type StoreApi = {
       contractType?: ContractType;
       contractTotal?: number;
       supervisionPct?: number;
+      showClientMoney?: boolean;
     },
   ) => void;
   addAgreement: (input: {
@@ -76,8 +78,19 @@ type StoreApi = {
   ) => string;
   deleteTransaction: (id: string) => void;
   addCategory: (name: string) => string;
+  addAlbum: (input: {
+    projectId: string;
+    name: string;
+    description?: string;
+    sharedWithClient: boolean;
+  }) => string;
+  updateAlbum: (
+    albumId: string,
+    patch: { name?: string; description?: string; sharedWithClient?: boolean },
+  ) => void;
   addPhoto: (input: {
     projectId: string;
+    albumId?: string;
     dataUrl: string;
     caption?: string;
     sharedWithClient?: boolean;
@@ -101,11 +114,13 @@ function loadState(): AppState {
       ...parsed,
       unlocked: !!parsed.unlocked,
       agreements: parsed.agreements || [],
+      albums: parsed.albums ?? seed.albums,
       projects: parsed.projects.map((project) => ({
         ...project,
         contractType: project.contractType || "fixed",
         supervisionPct: project.supervisionPct || 0,
         contractTotal: project.contractTotal || 0,
+        showClientMoney: project.showClientMoney !== false,
       })),
     };
   } catch {
@@ -159,6 +174,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           contractType: input.contractType,
           contractTotal: input.contractTotal,
           supervisionPct: input.supervisionPct,
+          showClientMoney: true,
           createdAt: new Date().toISOString(),
         };
         setState((prev) => ({
@@ -276,11 +292,43 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         });
         return id;
       },
+      addAlbum: (input) => {
+        const id = newId("alb");
+        const album: Album = {
+          id,
+          projectId: input.projectId,
+          name: input.name.trim(),
+          description: input.description?.trim() || undefined,
+          sharedWithClient: input.sharedWithClient,
+          createdAt: new Date().toISOString(),
+        };
+        setState((prev) => ({ ...prev, albums: [album, ...(prev.albums || [])] }));
+        return id;
+      },
+      updateAlbum: (albumId, patch) => {
+        setState((prev) => ({
+          ...prev,
+          albums: (prev.albums || []).map((album) =>
+            album.id === albumId
+              ? {
+                  ...album,
+                  ...patch,
+                  name: patch.name !== undefined ? patch.name.trim() : album.name,
+                  description:
+                    patch.description !== undefined
+                      ? patch.description.trim() || undefined
+                      : album.description,
+                }
+              : album,
+          ),
+        }));
+      },
       addPhoto: (input) => {
         const id = newId("ph");
         const photo: GalleryPhoto = {
           id,
           projectId: input.projectId,
+          albumId: input.albumId,
           dataUrl: input.dataUrl,
           caption: input.caption?.trim() || undefined,
           sharedWithClient: input.sharedWithClient ?? true,

@@ -126,6 +126,60 @@ export function contractTypeLabel(type: string): string {
   return "مبلغ ثابت";
 }
 
+export type LedgerSort =
+  | "newest"
+  | "oldest"
+  | "amount_desc"
+  | "amount_asc"
+  | "type_purchase"
+  | "type_client"
+  | "category_az"
+  | "category_za";
+
+export type LedgerKind = "all" | "purchase" | "client" | "contractor";
+
+export function txAmount(tx: Transaction): number {
+  return tx.type === "expense" ? expenseBreakdown(tx).total : tx.amount;
+}
+
+export function txKind(tx: Transaction): Exclude<LedgerKind, "all"> {
+  if (tx.type === "client_payment") return "client";
+  if (tx.expenseKind === "labor" || tx.contractorId) return "contractor";
+  return "purchase";
+}
+
+export function filterTransactions(
+  state: AppState,
+  projectId: string,
+  options: { query?: string; sort?: LedgerSort; kind?: LedgerKind; categoryId?: string },
+): Transaction[] {
+  const query = (options.query || "").trim();
+  const sort = options.sort || "newest";
+  const kind = options.kind || "all";
+  const categoryId = options.categoryId || "";
+  let rows = projectTransactions(state, projectId).filter((tx) => {
+    if (kind !== "all" && txKind(tx) !== kind) return false;
+    if (categoryId && tx.categoryId !== categoryId) return false;
+    if (!query) return true;
+    const category = state.categories.find((item) => item.id === tx.categoryId);
+    const haystack = `${tx.notes || ""} ${tx.privateNotes || ""} ${category?.name || ""}`;
+    return haystack.includes(query);
+  });
+  const categoryName = (tx: Transaction) =>
+    state.categories.find((item) => item.id === tx.categoryId)?.name || "";
+  rows = [...rows].sort((a, b) => {
+    if (sort === "oldest") return a.date.localeCompare(b.date);
+    if (sort === "amount_desc") return txAmount(b) - txAmount(a);
+    if (sort === "amount_asc") return txAmount(a) - txAmount(b);
+    if (sort === "type_purchase") return Number(txKind(b) === "purchase") - Number(txKind(a) === "purchase");
+    if (sort === "type_client") return Number(txKind(b) === "client") - Number(txKind(a) === "client");
+    if (sort === "category_az") return categoryName(a).localeCompare(categoryName(b), "ar");
+    if (sort === "category_za") return categoryName(b).localeCompare(categoryName(a), "ar");
+    return b.date.localeCompare(a.date);
+  });
+  return rows;
+}
+
 export function expensesForPerson(
   state: AppState,
   key: "contractorId" | "supplierId",

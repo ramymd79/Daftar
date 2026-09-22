@@ -25,9 +25,15 @@ function ClientInner() {
   const client = state.clients.find((item) => item.id === project.clientId);
   const money = projectMoney(state, project.id);
   const rows = expensesByCategory(state, project.id);
-  const photos = state.photos.filter(
-    (photo) => photo.projectId === project.id && photo.sharedWithClient,
+  const sharedAlbumIds = new Set(
+    (state.albums || [])
+      .filter((album) => album.projectId === project.id && album.sharedWithClient)
+      .map((album) => album.id),
   );
+  const photos = state.photos.filter(
+    (photo) => photo.projectId === project.id && photo.albumId && sharedAlbumIds.has(photo.albumId),
+  );
+  const showMoney = project.showClientMoney !== false;
   const publicTxs = money.txs;
 
   return (
@@ -49,13 +55,15 @@ function ClientInner() {
         <h1 className="text-xl font-black">{project.name}</h1>
 
         <div className="mt-3 grid grid-cols-2 gap-2 text-center">
-          <button
-            type="button"
-            className={`rounded-2xl px-3 py-2 text-sm font-bold ${tab === "finance" ? "bg-white" : "text-stone-500"}`}
-            onClick={() => setTab("finance")}
-          >
-            المالية
-          </button>
+          {showMoney ? (
+            <button
+              type="button"
+              className={`rounded-2xl px-3 py-2 text-sm font-bold ${tab === "finance" ? "bg-white" : "text-stone-500"}`}
+              onClick={() => setTab("finance")}
+            >
+              المالية
+            </button>
+          ) : null}
           <button
             type="button"
             className={`rounded-2xl px-3 py-2 text-sm font-bold ${tab === "photos" ? "bg-white" : "text-stone-500"}`}
@@ -65,7 +73,7 @@ function ClientInner() {
           </button>
         </div>
 
-        {tab === "finance" ? (
+        {showMoney && tab === "finance" ? (
           <div className="mt-3 space-y-3">
             <div className="grid grid-cols-2 gap-2">
               <PortalCard

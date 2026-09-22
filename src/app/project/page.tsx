@@ -5,16 +5,18 @@ import { FormEvent, Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { FinanceBoard } from "@/components/FinanceBoard";
+import { Ledger } from "@/components/Ledger";
 import { ProjectTabs, type ProjectTab } from "@/components/ProjectTabs";
 import { readCompressedImage } from "@/lib/images";
 import {
   contractTypeLabel,
+  expenseBreakdown,
   expensesForPerson,
   statusLabel,
 } from "@/lib/logic";
-import { formatMoney } from "@/lib/money";
+import { formatDay, formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
-import type { ContractType, Project, ProjectStatus } from "@/lib/types";
+import type { Album, ContractType, Project, ProjectStatus } from "@/lib/types";
 
 function ProjectInner() {
   const params = useSearchParams();
@@ -22,8 +24,9 @@ function ProjectInner() {
     state,
     updateProject,
     addPhoto,
-    updatePhotoShare,
     deletePhoto,
+    addAlbum,
+    updateAlbum,
   } = useStore();
   const projectId = params.get("id") || "";
   const tab = (params.get("tab") as ProjectTab) || "finance";
@@ -54,6 +57,9 @@ function ProjectInner() {
       {tab === "finance" ? (
         <div className="mt-3">
           <FinanceBoard state={state} projectId={project.id} />
+          <div className="mt-4">
+            <Ledger state={state} projectId={project.id} />
+          </div>
         </div>
       ) : null}
 
@@ -71,22 +77,57 @@ function ProjectInner() {
           ) : (
             agreements.map((agreement) => {
               const person = state.contractors.find((item) => item.id === agreement.contractorId);
-              const paid = expensesForPerson(
+              const related = expensesForPerson(
                 state,
                 "contractorId",
                 agreement.contractorId,
                 project.id,
-              ).reduce((sum, tx) => sum + tx.amount, 0);
+              );
+              const paid = related.reduce((sum, tx) => sum + expenseBreakdown(tx).total, 0);
+              const ratio = agreement.amount > 0 ? Math.min(100, (paid / agreement.amount) * 100) : 0;
+              const tags = [
+                ...new Set(
+                  related
+                    .map((tx) => state.categories.find((item) => item.id === tx.categoryId)?.name)
+                    .filter(Boolean),
+                ),
+              ];
               return (
-                <div key={agreement.id} className="card">
-                  <p className="font-bold">{person?.name || "مقاول"}</p>
-                  <p className="mt-1 text-sm text-stone-600">
-                    المتفق عليه {formatMoney(agreement.amount)} · اتدفع {formatMoney(paid)}
-                  </p>
-                  {agreement.notes ? (
-                    <p className="mt-1 text-sm text-stone-500">{agreement.notes}</p>
-                  ) : null}
-                </div>
+                <article key={agreement.id} className="card">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-black">{person?.name || "مقاول"}</p>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {tags.map((tag) => (
+                          <span key={tag} className="rounded-full bg-stone-100 px-2 py-0.5 text-xs">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <span
+                      className={`rounded-full px-2 py-1 text-xs font-bold ${
+                        paid > 0 ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                      }`}
+                    >
+                      {paid > 0 ? "يعمل" : "بانتظار الدفع"}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 text-center text-sm">
+                    <div>
+                      <p className="text-stone-500">المدفوع</p>
+                      <p className="font-black">{formatMoney(paid)}</p>
+                    </div>
+                    <div>
+                      <p className="text-stone-500">المتفق عليه</p>
+                      <p className="font-black">{formatMoney(agreement.amount)}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-stone-100">
+                    <div className="h-full bg-[var(--brand)]" style={{ width: `${ratio}%` }} />
+                  </div>
+                  {agreement.notes ? <p className="mt-2 text-sm text-stone-500">{agreement.notes}</p> : null}
+                </article>
               );
             })
           )}
@@ -100,15 +141,23 @@ function ProjectInner() {
       {tab === "gallery" ? (
         <Gallery
           projectId={project.id}
+          albums={(state.albums || []).filter((album) => album.projectId === project.id)}
           photos={state.photos.filter((photo) => photo.projectId === project.id)}
+          onAddAlbum={addAlbum}
+          onUpdateAlbum={updateAlbum}
           onAdd={addPhoto}
-          onShare={updatePhotoShare}
           onDelete={deletePhoto}
         />
       ) : null}
 
       {tab === "settings" ? (
-        <ProjectSettingsForm project={project} clients={state.clients} onSave={updateProject} />
+        <ProjectSettingsForm
+          project={project}
+          clients={state.clients}
+          albums={(state.albums || []).filter((album) => album.projectId === project.id)}
+          onSave={updateProject}
+          onAlbumShare={(albumId, shared) => updateAlbum(albumId, { sharedWithClient: shared })}
+        />
       ) : null}
     </AppShell>
   );
@@ -117,26 +166,40 @@ function ProjectInner() {
 function SupplierList({ projectId }: { projectId: string }) {
   const { state } = useStore();
   const people = state.suppliers
-    .map((person) => ({
-      ...person,
-      spent: expensesForPerson(state, "supplierId", person.id, projectId).reduce(
-        (sum, tx) => sum + tx.amount,
-        0,
-      ),
-    }))
-    .filter((person) => person.spent > 0);
+    .map((person) => {
+      const txs = expensesForPerson(state, "supplierId", person.id, projectId);
+      return {
+        ...person,
+        txs,
+        spent: txs.reduce((sum, tx) => sum + expenseBreakdown(tx).total, 0),
+      };
+    })
+    .filter((person) => person.txs.length > 0);
 
   if (people.length === 0) {
     return <p className="card mt-3 text-stone-500">لسه مفيش مورد متربط بمصروف المشروع.</p>;
   }
 
   return (
-    <div className="mt-3 space-y-2">
+    <div className="mt-3 space-y-3">
       {people.map((person) => (
-        <div key={person.id} className="card flex items-center justify-between">
-          <p className="font-bold">{person.name}</p>
-          <p className="font-bold text-[#b4533a]">{formatMoney(person.spent)}</p>
-        </div>
+        <article key={person.id} className="card">
+          <div className="flex items-center justify-between">
+            <p className="font-black">{person.name}</p>
+            <p className="font-black text-[#b4533a]">{formatMoney(person.spent)}</p>
+          </div>
+          <ul className="mt-2 divide-y divide-stone-100 text-sm">
+            {person.txs.map((tx) => (
+              <li key={tx.id} className="flex items-center justify-between gap-3 py-2">
+                <span>
+                  {tx.notes || "مصروف"}
+                  <span className="block text-xs text-stone-500">{formatDay(tx.date)}</span>
+                </span>
+                <span className="font-bold">{formatMoney(expenseBreakdown(tx).total)}</span>
+              </li>
+            ))}
+          </ul>
+        </article>
       ))}
     </div>
   );
@@ -144,68 +207,61 @@ function SupplierList({ projectId }: { projectId: string }) {
 
 function Gallery({
   projectId,
+  albums,
   photos,
+  onAddAlbum,
+  onUpdateAlbum,
   onAdd,
-  onShare,
   onDelete,
 }: {
   projectId: string;
-  photos: { id: string; dataUrl: string; caption?: string; sharedWithClient: boolean }[];
+  albums: Album[];
+  photos: { id: string; albumId?: string; dataUrl: string; caption?: string; createdAt: string }[];
+  onAddAlbum: (input: {
+    projectId: string;
+    name: string;
+    description?: string;
+    sharedWithClient: boolean;
+  }) => string;
+  onUpdateAlbum: (albumId: string, patch: { sharedWithClient?: boolean }) => void;
   onAdd: (input: {
     projectId: string;
+    albumId?: string;
     dataUrl: string;
     caption?: string;
     sharedWithClient?: boolean;
   }) => string;
-  onShare: (photoId: string, shared: boolean) => void;
   onDelete: (photoId: string) => void;
 }) {
-  const [draft, setDraft] = useState<{ dataUrl: string; caption: string; shared: boolean } | null>(
-    null,
-  );
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [shared, setShared] = useState(true);
+  const [albumId, setAlbumId] = useState("");
   const [openId, setOpenId] = useState("");
-  const open = photos.find((photo) => photo.id === openId);
+  const album = albums.find((item) => item.id === albumId);
+  const albumPhotos = photos.filter((photo) => photo.albumId === albumId);
+  const open = albumPhotos.find((photo) => photo.id === openId);
 
-  return (
-    <div className="mt-3 space-y-3">
-      {draft ? (
-        <form
-          className="card space-y-3"
-          onSubmit={(e: FormEvent) => {
-            e.preventDefault();
-            onAdd({
-              projectId,
-              dataUrl: draft.dataUrl,
-              caption: draft.caption.trim() || "صورة من الموقع",
-              sharedWithClient: draft.shared,
-            });
-            setDraft(null);
-          }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={draft.dataUrl} alt="معاينة" className="aspect-video w-full rounded-xl object-cover" />
-          <input
-            className="input"
-            placeholder="وصف الصورة"
-            value={draft.caption}
-            onChange={(e) => setDraft({ ...draft, caption: e.target.value })}
-          />
-          <label className="flex items-center gap-2 text-sm">
+  if (album) {
+    return (
+      <div className="mt-3 space-y-3">
+        <button type="button" className="text-sm text-stone-500" onClick={() => setAlbumId("")}>
+          رجوع للألبومات
+        </button>
+        <div className="card">
+          <p className="font-black">{album.name}</p>
+          {album.description ? <p className="mt-1 text-sm text-stone-500">{album.description}</p> : null}
+          <p className="mt-1 text-xs text-stone-400">{albumPhotos.length} صور</p>
+          <label className="mt-2 flex items-center gap-2 text-sm">
             <input
               type="checkbox"
-              checked={draft.shared}
-              onChange={(e) => setDraft({ ...draft, shared: e.target.checked })}
+              checked={album.sharedWithClient}
+              onChange={(e) => onUpdateAlbum(album.id, { sharedWithClient: e.target.checked })}
             />
-            تظهر للعميل
+            مشترك مع العميل
           </label>
-          <button type="submit" className="btn btn-primary w-full">
-            حفظ في المعرض
-          </button>
-          <button type="button" className="btn btn-secondary w-full" onClick={() => setDraft(null)}>
-            إلغاء
-          </button>
-        </form>
-      ) : (
+        </div>
         <label className="btn btn-secondary w-full cursor-pointer">
           إضافة صورة
           <input
@@ -217,63 +273,128 @@ function Gallery({
               const file = e.target.files?.[0];
               e.target.value = "";
               if (!file) return;
-              setDraft({
+              onAdd({
+                projectId,
+                albumId: album.id,
                 dataUrl: await readCompressedImage(file),
-                caption: "",
-                shared: true,
+                caption: album.name,
+                sharedWithClient: album.sharedWithClient,
               });
             }}
           />
         </label>
-      )}
-
-      {photos.length === 0 && !draft ? (
-        <p className="card text-stone-500">لسه مفيش صور للموقع.</p>
-      ) : (
-        <div className="grid grid-cols-2 gap-2">
-          {photos.map((photo) => (
-            <div key={photo.id} className="card p-2">
-              <button type="button" className="block w-full" onClick={() => setOpenId(photo.id)}>
+        {albumPhotos.length === 0 ? (
+          <p className="card text-stone-500">الألبوم فاضي.</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {albumPhotos.map((photo) => (
+              <button key={photo.id} type="button" className="card p-2" onClick={() => setOpenId(photo.id)}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={photo.dataUrl}
-                  alt={photo.caption || "صورة"}
-                  className="aspect-square w-full rounded-xl object-cover"
-                />
+                <img src={photo.dataUrl} alt={photo.caption || album.name} className="aspect-square w-full rounded-xl object-cover" />
               </button>
-              <p className="mt-2 truncate text-xs">{photo.caption || "بدون وصف"}</p>
-              <label className="mt-1 flex items-center gap-2 text-xs">
-                <input
-                  type="checkbox"
-                  checked={photo.sharedWithClient}
-                  onChange={(e) => onShare(photo.id, e.target.checked)}
-                />
-                تظهر للعميل
-              </label>
-              <button
-                type="button"
-                className="mt-1 text-xs text-rose-600"
-                onClick={() => {
-                  if (window.confirm("تحذف الصورة دي؟")) onDelete(photo.id);
-                }}
-              >
-                حذف
+            ))}
+          </div>
+        )}
+        {open ? (
+          <div className="fixed inset-0 z-50 flex flex-col bg-black text-white">
+            <div className="flex items-center justify-between px-4 py-3">
+              <button type="button" onClick={() => setOpenId("")}>
+                ×
               </button>
+              <p className="font-bold">{album.name}</p>
+              <a href={open.dataUrl} download className="text-sm font-bold">
+                تحميل
+              </a>
             </div>
-          ))}
-        </div>
-      )}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={open.dataUrl} alt={open.caption || album.name} className="mx-auto max-h-[70dvh] max-w-full object-contain" />
+            <p className="px-4 py-3 text-center text-sm text-stone-300">{formatDay(open.createdAt)}</p>
+            <button
+              type="button"
+              className="mx-auto mb-6 text-sm text-rose-300"
+              onClick={() => {
+                onDelete(open.id);
+                setOpenId("");
+              }}
+            >
+              حذف
+            </button>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
 
-      {open ? (
-        <button
-          type="button"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-          onClick={() => setOpenId("")}
+  return (
+    <div className="mt-3 space-y-3">
+      {creating ? (
+        <form
+          className="card space-y-3"
+          onSubmit={(e: FormEvent) => {
+            e.preventDefault();
+            if (!name.trim()) return;
+            const id = onAddAlbum({
+              projectId,
+              name,
+              description,
+              sharedWithClient: shared,
+            });
+            setCreating(false);
+            setName("");
+            setDescription("");
+            setShared(true);
+            setAlbumId(id);
+          }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={open.dataUrl} alt={open.caption || "صورة"} className="max-h-[80dvh] max-w-full rounded-xl" />
+          <p className="font-black">إنشاء ألبوم جديد</p>
+          <label className="block text-sm font-semibold">
+            اسم الألبوم <span className="text-rose-600">مطلوب</span>
+            <input className="input mt-1" value={name} onChange={(e) => setName(e.target.value)} required />
+          </label>
+          <label className="block text-sm font-semibold">
+            وصف <span className="font-normal text-stone-400">اختياري</span>
+            <input className="input mt-1" value={description} onChange={(e) => setDescription(e.target.value)} />
+          </label>
+          <label className="flex items-center justify-between text-sm font-semibold">
+            مشترك مع العميل
+            <input type="checkbox" checked={shared} onChange={(e) => setShared(e.target.checked)} />
+          </label>
+          <button type="submit" className="btn btn-primary w-full">
+            إنشاء
+          </button>
+          <button type="button" className="btn btn-secondary w-full" onClick={() => setCreating(false)}>
+            إلغاء
+          </button>
+        </form>
+      ) : (
+        <button type="button" className="btn btn-secondary w-full" onClick={() => setCreating(true)}>
+          ألبوم جديد
         </button>
-      ) : null}
+      )}
+      {albums.length === 0 ? (
+        <p className="card text-stone-500">لسه مفيش ألبومات.</p>
+      ) : (
+        albums.map((item) => {
+          const count = photos.filter((photo) => photo.albumId === item.id).length;
+          const cover = photos.find((photo) => photo.albumId === item.id);
+          return (
+            <button key={item.id} type="button" className="card flex w-full items-center gap-3 text-right" onClick={() => setAlbumId(item.id)}>
+              {cover ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={cover.dataUrl} alt="" className="h-16 w-16 rounded-xl object-cover" />
+              ) : (
+                <span className="grid h-16 w-16 place-items-center rounded-xl bg-stone-100 text-xs text-stone-400">فاضي</span>
+              )}
+              <span>
+                <span className="block font-black">{item.name}</span>
+                <span className="text-sm text-stone-500">
+                  {count} صور · {item.sharedWithClient ? "مشترك مع العميل" : "خاص"}
+                </span>
+              </span>
+            </button>
+          );
+        })
+      )}
     </div>
   );
 }
@@ -281,10 +402,13 @@ function Gallery({
 function ProjectSettingsForm({
   project,
   clients,
+  albums,
   onSave,
+  onAlbumShare,
 }: {
   project: Project;
   clients: { id: string; name: string }[];
+  albums: Album[];
   onSave: (
     id: string,
     patch: {
@@ -295,8 +419,10 @@ function ProjectSettingsForm({
       contractType?: ContractType;
       contractTotal?: number;
       supervisionPct?: number;
+      showClientMoney?: boolean;
     },
   ) => void;
+  onAlbumShare: (albumId: string, shared: boolean) => void;
 }) {
   const [name, setName] = useState(project.name);
   const [address, setAddress] = useState(project.address || "");
@@ -305,6 +431,7 @@ function ProjectSettingsForm({
   const [contractType, setContractType] = useState<ContractType>(project.contractType || "fixed");
   const [contractTotal, setContractTotal] = useState(String(project.contractTotal || ""));
   const [supervisionPct, setSupervisionPct] = useState(String(project.supervisionPct || 0));
+  const [showClientMoney, setShowClientMoney] = useState(project.showClientMoney !== false);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
@@ -315,6 +442,7 @@ function ProjectSettingsForm({
     setContractType(project.contractType || "fixed");
     setContractTotal(String(project.contractTotal || ""));
     setSupervisionPct(String(project.supervisionPct || 0));
+    setShowClientMoney(project.showClientMoney !== false);
   }, [project]);
 
   return (
@@ -332,6 +460,7 @@ function ProjectSettingsForm({
             contractType,
             contractTotal: Number(contractTotal) || 0,
             supervisionPct: Number(supervisionPct) || 0,
+            showClientMoney,
           });
           setSaved(true);
         }}
@@ -387,6 +516,29 @@ function ProjectSettingsForm({
           value={supervisionPct}
           onChange={(e) => setSupervisionPct(e.target.value)}
         />
+        <label className="flex items-center justify-between text-sm font-semibold">
+          العميل يشوف تبويب الفلوس
+          <input
+            type="checkbox"
+            checked={showClientMoney}
+            onChange={(e) => setShowClientMoney(e.target.checked)}
+          />
+        </label>
+        {albums.length > 0 ? (
+          <div className="space-y-2">
+            <p className="text-sm font-bold">ألبومات ظاهرة للعميل</p>
+            {albums.map((album) => (
+              <label key={album.id} className="flex items-center justify-between text-sm">
+                {album.name}
+                <input
+                  type="checkbox"
+                  checked={album.sharedWithClient}
+                  onChange={(e) => onAlbumShare(album.id, e.target.checked)}
+                />
+              </label>
+            ))}
+          </div>
+        ) : null}
         <button type="submit" className="btn btn-primary w-full">
           حفظ البيانات
         </button>

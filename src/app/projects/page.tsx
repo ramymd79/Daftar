@@ -248,19 +248,20 @@ export default function ProjectsPage() {
             ))}
           </div>
           <label className="block text-sm font-semibold">
-            الميزانية الإجمالية
+            الميزانية الإجمالية <span className="text-rose-600">مطلوب</span>
             <input
               className="input mt-1"
               type="number"
               inputMode="numeric"
-              min="0"
+              min="1"
               placeholder="أدخل المبلغ"
               value={contractTotal}
               onChange={(e) => setContractTotal(e.target.value)}
+              required
             />
           </label>
           <label className="block text-sm font-semibold">
-            نسبة الإشراف
+            نسبة الإشراف <span className="text-rose-600">مطلوب</span>
             <input
               className="input mt-1"
               type="number"
@@ -270,6 +271,7 @@ export default function ProjectsPage() {
               placeholder="٪"
               value={supervisionPct}
               onChange={(e) => setSupervisionPct(e.target.value)}
+              required
             />
           </label>
           <button type="submit" className="btn btn-primary w-full">

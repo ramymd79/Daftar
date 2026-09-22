@@ -23,6 +23,7 @@ export type Project = {
   contractType: ContractType;
   contractTotal: number;
   supervisionPct: number;
+  showClientMoney?: boolean;
   createdAt: string;
 };
 
@@ -65,9 +66,19 @@ export type Agreement = {
   createdAt: string;
 };
 
+export type Album = {
+  id: string;
+  projectId: string;
+  name: string;
+  description?: string;
+  sharedWithClient: boolean;
+  createdAt: string;
+};
+
 export type GalleryPhoto = {
   id: string;
   projectId: string;
+  albumId?: string;
   dataUrl: string;
   caption?: string;
   sharedWithClient: boolean;
@@ -83,5 +94,6 @@ export type AppState = {
   categories: Category[];
   transactions: Transaction[];
   agreements: Agreement[];
+  albums: Album[];
   photos: GalleryPhoto[];
 };

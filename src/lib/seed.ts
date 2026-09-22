@@ -60,6 +60,7 @@ export function createSeedState(): AppState {
         contractType: "percent",
         contractTotal: 2000000,
         supervisionPct: 12,
+        showClientMoney: true,
         createdAt: "2024-08-01T10:00:00.000Z",
       },
       {
@@ -71,6 +72,7 @@ export function createSeedState(): AppState {
         contractType: "fixed",
         contractTotal: 780000,
         supervisionPct: 10,
+        showClientMoney: true,
         createdAt: "2024-09-10T10:00:00.000Z",
       },
     ],
@@ -179,6 +181,24 @@ export function createSeedState(): AppState {
         createdAt: "2024-09-15T12:00:00.000Z",
       },
     ],
+    albums: [
+      {
+        id: "alb_reception",
+        projectId: "prj_maadi",
+        name: "الريسبشن - مرحلة أولى",
+        description: "صور الأرضية بعد التوريد",
+        sharedWithClient: true,
+        createdAt: "2024-08-14T09:00:00.000Z",
+      },
+      {
+        id: "alb_private",
+        projectId: "prj_maadi",
+        name: "ملاحظات المكتب",
+        description: "مش للعميل",
+        sharedWithClient: false,
+        createdAt: "2024-08-18T09:00:00.000Z",
+      },
+    ],
     agreements: [
       {
         id: "agr_naggash",
@@ -187,6 +207,14 @@ export function createSeedState(): AppState {
         amount: 30000,
         notes: "نقاشة الدور الأول",
         createdAt: "2024-08-18T10:00:00.000Z",
+      },
+      {
+        id: "agr_sebaka",
+        projectId: "prj_maadi",
+        contractorId: "ctr_sebaka",
+        amount: 30000,
+        notes: "سباكة الدور الأرضي",
+        createdAt: "2024-08-19T10:00:00.000Z",
       },
     ],
     photos: [
@@ -198,6 +226,7 @@ export function createSeedState(): AppState {
           encodeURIComponent(
             `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480"><rect fill="#d6d3d1" width="100%" height="100%"/><text x="50%" y="50%" text-anchor="middle" fill="#44403c" font-size="28" font-family="Tahoma">صور الموقع — بلاط</text></svg>`,
           ),
+        albumId: "alb_reception",
         caption: "توريد بلاط الصالة",
         sharedWithClient: true,
         createdAt: "2024-08-14T10:00:00.000Z",
@@ -210,6 +239,7 @@ export function createSeedState(): AppState {
           encodeURIComponent(
             `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480"><rect fill="#e7e5e4" width="100%" height="100%"/><text x="50%" y="50%" text-anchor="middle" fill="#44403c" font-size="28" font-family="Tahoma">ملاحظة داخلية</text></svg>`,
           ),
+        albumId: "alb_private",
         caption: "ملاحظة داخلية للمكتب",
         sharedWithClient: false,
         createdAt: "2024-08-18T10:00:00.000Z",

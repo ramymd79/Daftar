@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { expenseBreakdown, expensesByCategory, projectMoney } from "@/lib/logic";
+import { expenseBreakdown, expensesByCategory, filterTransactions, projectMoney, type LedgerKind, type LedgerSort } from "@/lib/logic";
 import { formatDay, formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
 
@@ -18,6 +18,12 @@ function PrintInner() {
   const client = state.clients.find((item) => item.id === project.clientId);
   const money = projectMoney(state, project.id);
   const rows = expensesByCategory(state, project.id);
+  const txs = filterTransactions(state, project.id, {
+    query: params.get("q") || "",
+    sort: (params.get("sort") as LedgerSort) || "newest",
+    kind: (params.get("kind") as LedgerKind) || "all",
+    categoryId: params.get("category") || "",
+  });
 
   return (
     <div className="mx-auto max-w-3xl bg-white px-4 py-6 text-stone-900">
@@ -85,7 +91,7 @@ function PrintInner() {
             </tr>
           </thead>
           <tbody>
-            {[...money.txs].reverse().map((tx) => {
+            {txs.map((tx) => {
               const category = state.categories.find((item) => item.id === tx.categoryId);
               return (
                 <tr key={tx.id} className="border-b border-stone-100">
