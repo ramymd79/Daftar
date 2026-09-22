@@ -8,11 +8,11 @@ import { ContractBudgetFields } from "@/components/ContractBudgetFields";
 import { FinanceBoard } from "@/components/FinanceBoard";
 import { Ledger } from "@/components/Ledger";
 import { ProjectTabs, type ProjectTab } from "@/components/ProjectTabs";
-import { readCompressedImage } from "@/lib/images";
+import { Gallery } from "@/components/Gallery";
 import { expenseBreakdown, expensesForPerson, statusLabel } from "@/lib/logic";
 import { formatDay, formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
-import type { Album, ContractType, Project, ProjectStatus } from "@/lib/types";
+import type { ContractType, Project, ProjectStatus } from "@/lib/types";
 
 function ProjectInner() {
   const params = useSearchParams();
@@ -23,6 +23,8 @@ function ProjectInner() {
     deletePhoto,
     addAlbum,
     updateAlbum,
+    deleteAlbum,
+    updatePhoto,
   } = useStore();
   const projectId = params.get("id") || "";
   const tab = (params.get("tab") as ProjectTab) || "finance";
@@ -48,7 +50,7 @@ function ProjectInner() {
   return (
     <AppShell
       title={project.name}
-      showFab
+      showFab={tab !== "gallery"}
       fabHref={moneyHref}
       onFabClick={onFinance ? () => setAddOpen(true) : undefined}
     >
@@ -153,8 +155,10 @@ function ProjectInner() {
           photos={state.photos.filter((photo) => photo.projectId === project.id)}
           onAddAlbum={addAlbum}
           onUpdateAlbum={updateAlbum}
-          onAdd={addPhoto}
-          onDelete={deletePhoto}
+          onDeleteAlbum={deleteAlbum}
+          onAddPhoto={addPhoto}
+          onUpdatePhoto={updatePhoto}
+          onDeletePhoto={deletePhoto}
         />
       ) : null}
 
@@ -252,200 +256,6 @@ function SupplierList({ projectId }: { projectId: string }) {
           </ul>
         </article>
       ))}
-    </div>
-  );
-}
-
-function Gallery({
-  projectId,
-  albums,
-  photos,
-  onAddAlbum,
-  onUpdateAlbum,
-  onAdd,
-  onDelete,
-}: {
-  projectId: string;
-  albums: Album[];
-  photos: { id: string; albumId?: string; dataUrl: string; caption?: string; createdAt: string }[];
-  onAddAlbum: (input: {
-    projectId: string;
-    name: string;
-    description?: string;
-    sharedWithClient: boolean;
-  }) => string;
-  onUpdateAlbum: (albumId: string, patch: { sharedWithClient?: boolean }) => void;
-  onAdd: (input: {
-    projectId: string;
-    albumId?: string;
-    dataUrl: string;
-    caption?: string;
-    sharedWithClient?: boolean;
-  }) => string;
-  onDelete: (photoId: string) => void;
-}) {
-  const [creating, setCreating] = useState(false);
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [shared, setShared] = useState(true);
-  const [albumId, setAlbumId] = useState("");
-  const [openId, setOpenId] = useState("");
-  const album = albums.find((item) => item.id === albumId);
-  const albumPhotos = photos.filter((photo) => photo.albumId === albumId);
-  const open = albumPhotos.find((photo) => photo.id === openId);
-
-  if (album) {
-    return (
-      <div className="mt-3 space-y-3">
-        <button type="button" className="text-sm text-stone-500" onClick={() => setAlbumId("")}>
-          رجوع للألبومات
-        </button>
-        <div className="card">
-          <p className="font-black">{album.name}</p>
-          {album.description ? <p className="mt-1 text-sm text-stone-500">{album.description}</p> : null}
-          <p className="mt-1 text-xs text-stone-400">{albumPhotos.length} صور</p>
-          <label className="mt-2 flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={album.sharedWithClient}
-              onChange={(e) => onUpdateAlbum(album.id, { sharedWithClient: e.target.checked })}
-            />
-            مشترك مع العميل
-          </label>
-        </div>
-        <label className="btn btn-secondary w-full cursor-pointer">
-          إضافة صورة
-          <input
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="hidden"
-            onChange={async (e) => {
-              const file = e.target.files?.[0];
-              e.target.value = "";
-              if (!file) return;
-              onAdd({
-                projectId,
-                albumId: album.id,
-                dataUrl: await readCompressedImage(file),
-                caption: album.name,
-                sharedWithClient: album.sharedWithClient,
-              });
-            }}
-          />
-        </label>
-        {albumPhotos.length === 0 ? (
-          <p className="card text-stone-500">الألبوم فاضي.</p>
-        ) : (
-          <div className="grid grid-cols-2 gap-2">
-            {albumPhotos.map((photo) => (
-              <button key={photo.id} type="button" className="card p-2" onClick={() => setOpenId(photo.id)}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={photo.dataUrl} alt={photo.caption || album.name} className="aspect-square w-full rounded-xl object-cover" />
-              </button>
-            ))}
-          </div>
-        )}
-        {open ? (
-          <div className="fixed inset-0 z-50 flex flex-col bg-black text-white">
-            <div className="flex items-center justify-between px-4 py-3">
-              <button type="button" onClick={() => setOpenId("")}>
-                ×
-              </button>
-              <p className="font-bold">{album.name}</p>
-              <a href={open.dataUrl} download className="text-sm font-bold">
-                تحميل
-              </a>
-            </div>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={open.dataUrl} alt={open.caption || album.name} className="mx-auto max-h-[70dvh] max-w-full object-contain" />
-            <p className="px-4 py-3 text-center text-sm text-stone-300">{formatDay(open.createdAt)}</p>
-            <button
-              type="button"
-              className="mx-auto mb-6 text-sm text-rose-300"
-              onClick={() => {
-                onDelete(open.id);
-                setOpenId("");
-              }}
-            >
-              حذف
-            </button>
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-
-  return (
-    <div className="mt-3 space-y-3">
-      {creating ? (
-        <form
-          className="card space-y-3"
-          onSubmit={(e: FormEvent) => {
-            e.preventDefault();
-            if (!name.trim()) return;
-            const id = onAddAlbum({
-              projectId,
-              name,
-              description,
-              sharedWithClient: shared,
-            });
-            setCreating(false);
-            setName("");
-            setDescription("");
-            setShared(true);
-            setAlbumId(id);
-          }}
-        >
-          <p className="font-black">إنشاء ألبوم جديد</p>
-          <label className="block text-sm font-semibold">
-            اسم الألبوم <span className="text-rose-600">مطلوب</span>
-            <input className="input mt-1" value={name} onChange={(e) => setName(e.target.value)} required />
-          </label>
-          <label className="block text-sm font-semibold">
-            وصف <span className="font-normal text-stone-400">اختياري</span>
-            <input className="input mt-1" value={description} onChange={(e) => setDescription(e.target.value)} />
-          </label>
-          <label className="flex items-center justify-between text-sm font-semibold">
-            مشترك مع العميل
-            <input type="checkbox" checked={shared} onChange={(e) => setShared(e.target.checked)} />
-          </label>
-          <button type="submit" className="btn btn-primary w-full">
-            إنشاء
-          </button>
-          <button type="button" className="btn btn-secondary w-full" onClick={() => setCreating(false)}>
-            إلغاء
-          </button>
-        </form>
-      ) : (
-        <button type="button" className="btn btn-secondary w-full" onClick={() => setCreating(true)}>
-          ألبوم جديد
-        </button>
-      )}
-      {albums.length === 0 ? (
-        <p className="card text-stone-500">لسه مفيش ألبومات.</p>
-      ) : (
-        albums.map((item) => {
-          const count = photos.filter((photo) => photo.albumId === item.id).length;
-          const cover = photos.find((photo) => photo.albumId === item.id);
-          return (
-            <button key={item.id} type="button" className="card flex w-full items-center gap-3 text-right" onClick={() => setAlbumId(item.id)}>
-              {cover ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={cover.dataUrl} alt="" className="h-16 w-16 rounded-xl object-cover" />
-              ) : (
-                <span className="grid h-16 w-16 place-items-center rounded-xl bg-stone-100 text-xs text-stone-400">فاضي</span>
-              )}
-              <span>
-                <span className="block font-black">{item.name}</span>
-                <span className="text-sm text-stone-500">
-                  {count} صور · {item.sharedWithClient ? "مشترك مع العميل" : "خاص"}
-                </span>
-              </span>
-            </button>
-          );
-        })
-      )}
     </div>
   );
 }

@@ -103,7 +103,9 @@ type StoreApi = {
     sharedWithClient?: boolean;
   }) => string;
   updatePhotoShare: (photoId: string, sharedWithClient: boolean) => void;
+  updatePhoto: (photoId: string, patch: { caption?: string; albumId?: string; sharedWithClient?: boolean }) => void;
   deletePhoto: (photoId: string) => void;
+  deleteAlbum: (albumId: string) => void;
 };
 
 const StoreContext = createContext<StoreApi | null>(null);
@@ -378,10 +380,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ),
         }));
       },
+      updatePhoto: (photoId, patch) => {
+        setState((prev) => ({
+          ...prev,
+          photos: prev.photos.map((photo) =>
+            photo.id === photoId
+              ? {
+                  ...photo,
+                  ...patch,
+                  caption: patch.caption !== undefined ? patch.caption.trim() || undefined : photo.caption,
+                }
+              : photo,
+          ),
+        }));
+      },
       deletePhoto: (photoId) => {
         setState((prev) => ({
           ...prev,
           photos: prev.photos.filter((photo) => photo.id !== photoId),
+        }));
+      },
+      deleteAlbum: (albumId) => {
+        setState((prev) => ({
+          ...prev,
+          albums: (prev.albums || []).filter((album) => album.id !== albumId),
+          photos: prev.photos.filter((photo) => photo.albumId !== albumId),
         }));
       },
     }),
