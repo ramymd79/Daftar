@@ -4,7 +4,7 @@ import { FormEvent, Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { readCompressedImage } from "@/lib/images";
-import { expenseBreakdown, expensesForPerson } from "@/lib/logic";
+import { expenseBreakdown, expensesForPerson, projectMoney, supervisionDueOf } from "@/lib/logic";
 import { dayToIso, formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
 
@@ -27,10 +27,12 @@ function PaymentInner() {
   const [notes, setNotes] = useState("");
   const [attachment, setAttachment] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const lockedProject = Boolean(params.get("projectId"));
 
   const project = state.projects.find((item) => item.id === projectId);
   const backHref = projectId
-    ? `/project/?id=${encodeURIComponent(projectId)}&tab=contractors`
+    ? `/project/?id=${encodeURIComponent(projectId)}&tab=finance`
     : "/projects/";
 
   const agreed = (state.agreements || [])
@@ -65,8 +67,7 @@ function PaymentInner() {
     }
   }
 
-  function onSubmit(e: FormEvent) {
-    e.preventDefault();
+  function commitPayment() {
     if (!projectId || !contractorId || !categoryId || Number(amount) <= 0) return;
     const category = state.categories.find((item) => item.id === categoryId);
     addTransaction({
@@ -80,7 +81,22 @@ function PaymentInner() {
       notes: notes.trim() || category?.name || "مصنعية",
       attachmentDataUrl: attachment,
     });
+    setConfirmOpen(false);
     router.push(backHref);
+  }
+
+  function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!projectId || !contractorId || !categoryId || Number(amount) <= 0) return;
+    const money = projectMoney(state, projectId);
+    const nextSpent = money.spent + Number(amount);
+    const due = supervisionDueOf(project, nextSpent);
+    const nextRemaining = money.received - nextSpent - due;
+    if (nextRemaining < 0) {
+      setConfirmOpen(true);
+      return;
+    }
+    commitPayment();
   }
 
   return (
@@ -95,24 +111,31 @@ function PaymentInner() {
       <p className="mb-4 text-sm text-stone-600">سجل مدفوعات لمقاول مسؤول عن أعمال في المشروع.</p>
 
       <form onSubmit={onSubmit} className="space-y-3">
-        <label className="block text-sm font-semibold">
-          المشروع <span className="text-rose-600">مطلوب</span>
-          <select
-            className="input mt-1"
-            value={projectId}
-            onChange={(e) => {
-              setProjectId(e.target.value);
-              setContractorId("");
-            }}
-            required
-          >
-            {state.projects.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        {lockedProject && project ? (
+          <div className="rounded-2xl bg-white px-4 py-3 text-sm">
+            <p className="text-stone-500">المشروع</p>
+            <p className="font-bold">{project.name}</p>
+          </div>
+        ) : (
+          <label className="block text-sm font-semibold">
+            المشروع <span className="text-rose-600">مطلوب</span>
+            <select
+              className="input mt-1"
+              value={projectId}
+              onChange={(e) => {
+                setProjectId(e.target.value);
+                setContractorId("");
+              }}
+              required
+            >
+              {state.projects.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <label className="block text-sm font-semibold">
           المقاول <span className="text-rose-600">مطلوب</span>
@@ -240,6 +263,25 @@ function PaymentInner() {
           حفظ الدفعة
         </button>
       </form>
+
+      {confirmOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-6">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-5 text-center">
+            <h2 className="text-lg font-black">المصروفات هتتجاوز المتبقي</h2>
+            <p className="mt-2 text-sm text-stone-600">
+              بعد الحفظ المتبقي هيبقى بالسالب. متأكد تسجّل الحركة؟
+            </p>
+            <div className="mt-4 flex gap-2">
+              <button type="button" className="btn btn-primary flex-1" onClick={commitPayment}>
+                تأكيد
+              </button>
+              <button type="button" className="btn btn-secondary flex-1" onClick={() => setConfirmOpen(false)}>
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

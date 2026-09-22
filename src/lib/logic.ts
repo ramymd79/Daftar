@@ -43,10 +43,8 @@ export function projectMoney(state: AppState, projectId: string) {
   const txs = projectTransactions(state, projectId);
   const payments = txs.filter((t) => t.type === "client_payment");
   const expenses = txs.filter((t) => t.type === "expense");
-  const received = sumBy(
-    payments.filter((t) => t.paymentClass !== "supervision"),
-    (t) => t.amount,
-  );
+  /** المستلم (شامل الإشراف): كل دفعات العميل بما فيها تصنيف الإشراف */
+  const received = sumBy(payments, (t) => t.amount);
   const supervisionReceived = sumBy(
     payments.filter((t) => t.paymentClass === "supervision"),
     (t) => t.amount,
@@ -54,13 +52,15 @@ export function projectMoney(state: AppState, projectId: string) {
   const spent = sumBy(expenses, (t) => expenseBreakdown(t).total);
   const project = state.projects.find((item) => item.id === projectId);
   const supervisionTarget = supervisionTargetOf(project);
-  const remaining = received - spent;
-  const uncovered = Math.max(0, spent - received);
+  const supervisionDue = supervisionDueOf(project, spent);
+  const remaining = received - spent - supervisionDue;
+  const uncovered = remaining < 0 ? Math.abs(remaining) : 0;
   return {
     received,
     spent,
     supervisionReceived,
     supervisionTarget,
+    supervisionDue,
     uncovered,
     remaining,
     txs,
@@ -131,6 +131,24 @@ export function supervisionTargetOf(project?: Project): number {
     return project.supervisionAmount;
   }
   return Math.round(((project.contractTotal || 0) * (project.supervisionPct || 0)) / 100);
+}
+
+/** الإشراف المستحق على لوحة المالية: نسبة من المصروف، أو مبلغ ثابت، أو صفر لعقد المقاولة */
+export function supervisionDueOf(project: Project | undefined, spent: number): number {
+  if (!project || project.contractType === "contract") return 0;
+  if (project.contractType === "fixed") {
+    if (typeof project.supervisionAmount === "number") return project.supervisionAmount;
+    return supervisionTargetOf(project);
+  }
+  return Math.round((spent * (project.supervisionPct || 0)) / 100);
+}
+
+export function supervisionDueLabel(project?: Project): string {
+  if (project?.contractType === "fixed") return "مبلغ الإشراف المستحق";
+  if (project?.contractType === "percent" && (project.supervisionPct || 0) > 0) {
+    return `نسبة الإشراف المستحقة (${(project.supervisionPct || 0).toLocaleString("ar-EG")}٪)`;
+  }
+  return "نسبة الإشراف المستحقة";
 }
 
 export function supervisionBasisWord(project?: Project): string {

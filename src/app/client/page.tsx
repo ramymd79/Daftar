@@ -8,7 +8,7 @@ import {
   expensesByCategory,
   projectMoney,
   statusLabel,
-  supervisionBasisWord,
+  supervisionDueLabel,
 } from "@/lib/logic";
 import { formatDay, formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
@@ -107,26 +107,28 @@ function ClientInner() {
           <div className="mt-3 space-y-3">
             <div className="grid grid-cols-2 gap-2">
               <PortalCard
-                label="المستلم"
-                hint={project.contractTotal ? `من أصل الميزانية ${formatMoney(project.contractTotal)}` : undefined}
+                label="المستلم (شامل الإشراف)"
+                hint={project.contractTotal ? `من أصل ${formatMoney(project.contractTotal)}` : undefined}
                 value={formatMoney(money.received)}
               />
               <PortalCard
-                label="المتبقي"
+                label="المتبقي بعد المصروف والإشراف"
                 value={formatMoney(money.remaining)}
                 danger={money.remaining < 0}
               />
-              <PortalCard
-                label="نسبة الإشراف المستلمة"
-                hint={
-                  money.supervisionTarget > 0
-                    ? `من أصل ${supervisionBasisWord(project)} ${formatMoney(money.supervisionTarget)}`
-                    : undefined
-                }
-                value={formatMoney(money.supervisionReceived)}
-              />
               <PortalCard label="المصروف" value={formatMoney(money.spent)} danger />
+              <PortalCard
+                label={supervisionDueLabel(project)}
+                value={formatMoney(money.supervisionDue)}
+                danger
+              />
             </div>
+
+            {money.uncovered > 0 ? (
+              <div className="rounded-2xl bg-rose-100 px-4 py-3 text-center text-sm font-bold text-rose-800">
+                مصروفات غير مغطاة بمبلغ {formatMoney(money.uncovered)}
+              </div>
+            ) : null}
 
             <section className="card">
               <div className="mb-3 flex items-center justify-between">

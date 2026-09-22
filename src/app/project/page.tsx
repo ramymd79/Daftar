@@ -26,6 +26,7 @@ function ProjectInner() {
   const projectId = params.get("id") || "";
   const tab = (params.get("tab") as ProjectTab) || "finance";
   const project = state.projects.find((item) => item.id === projectId);
+  const [addOpen, setAddOpen] = useState(false);
 
   if (!project) {
     return (
@@ -41,9 +42,15 @@ function ProjectInner() {
   const client = state.clients.find((item) => item.id === project.clientId);
   const moneyHref = `/money/?projectId=${encodeURIComponent(project.id)}`;
   const agreements = (state.agreements || []).filter((item) => item.projectId === project.id);
+  const onFinance = tab === "finance";
 
   return (
-    <AppShell title={project.name} showFab fabHref={moneyHref}>
+    <AppShell
+      title={project.name}
+      showFab
+      fabHref={moneyHref}
+      onFabClick={onFinance ? () => setAddOpen(true) : undefined}
+    >
       <div className="mb-3 text-sm text-stone-600">
         {client?.name || "بدون عميل"} · {statusLabel(project.status)}
       </div>
@@ -161,6 +168,51 @@ function ProjectInner() {
           clients={state.clients}
           onSave={updateProject}
         />
+      ) : null}
+
+      {addOpen ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40">
+          <button
+            type="button"
+            className="absolute inset-0"
+            aria-label="إغلاق"
+            onClick={() => setAddOpen(false)}
+          />
+          <div className="relative z-10 w-full max-w-lg rounded-t-3xl bg-white px-4 pb-8 pt-4">
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-stone-200" />
+            <h2 className="mb-3 text-center text-lg font-black">إضافة جديد</h2>
+            <div className="space-y-2">
+              <Link
+                href={`/money/?projectId=${encodeURIComponent(project.id)}&kind=purchase`}
+                className="card block w-full text-center text-base font-bold"
+                onClick={() => setAddOpen(false)}
+              >
+                فاتورة مشتريات
+              </Link>
+              <Link
+                href={`/contractor-payment/?projectId=${encodeURIComponent(project.id)}`}
+                className="card block w-full text-center text-base font-bold"
+                onClick={() => setAddOpen(false)}
+              >
+                مدفوعات لمقاول
+              </Link>
+              <Link
+                href={`/money/?projectId=${encodeURIComponent(project.id)}&kind=payment`}
+                className="card block w-full text-center text-base font-bold"
+                onClick={() => setAddOpen(false)}
+              >
+                مدفوعات من عميل
+              </Link>
+              <button
+                type="button"
+                className="btn btn-secondary w-full"
+                onClick={() => setAddOpen(false)}
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </AppShell>
   );

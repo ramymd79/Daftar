@@ -1,6 +1,10 @@
 "use client";
 
-import { expensesByCategory, projectMoney, supervisionBasisWord } from "@/lib/logic";
+import {
+  expensesByCategory,
+  projectMoney,
+  supervisionDueLabel,
+} from "@/lib/logic";
 import { formatMoney } from "@/lib/money";
 import type { AppState } from "@/lib/types";
 
@@ -20,24 +24,21 @@ export function FinanceBoard({
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2">
         <MoneyCard
-          label="المستلم"
+          label="المستلم (شامل الإشراف)"
           value={formatMoney(money.received)}
-          hint={budget > 0 ? `من أصل الميزانية ${formatMoney(budget)}` : undefined}
+          tone="green"
+          hint={budget > 0 ? `من أصل ${formatMoney(budget)}` : undefined}
         />
         <MoneyCard
-          label="المتبقي"
+          label="المتبقي بعد المصروف والإشراف"
           value={formatMoney(money.remaining)}
           tone={money.remaining < 0 ? "rose" : "green"}
         />
         <MoneyCard label="المصروف" value={formatMoney(money.spent)} />
         <MoneyCard
-          label="نسبة الإشراف المستلمة"
-          value={formatMoney(money.supervisionReceived)}
-          hint={
-            money.supervisionTarget > 0
-              ? `من أصل ${supervisionBasisWord(project)} ${formatMoney(money.supervisionTarget)}`
-              : undefined
-          }
+          label={supervisionDueLabel(project)}
+          value={formatMoney(money.supervisionDue)}
+          tone="rose"
         />
       </div>
 
@@ -76,7 +77,7 @@ export function FinanceBoard({
                       {row.category.name}
                     </span>
                     <span className="font-black">
-                      ({row.pct.toFixed(0)}%) {formatMoney(row.amount)}
+                      ({row.pct.toFixed(1)}%) {formatMoney(row.amount)}
                     </span>
                   </div>
                   <div className="h-1" style={{ background: row.category.color }} />
@@ -110,7 +111,7 @@ function MoneyCard({
     tone === "green" ? "text-emerald-700" : tone === "rose" ? "text-rose-700" : "text-stone-900";
   return (
     <div className="rounded-2xl bg-white px-3 py-4 text-center">
-      <p className="text-xs text-stone-500">{label}</p>
+      <p className="text-xs leading-snug text-stone-500">{label}</p>
       <p className={`mt-1 text-2xl font-black ${valueColor}`}>{value}</p>
       {hint ? <p className="mt-1 text-[11px] leading-snug text-stone-400">{hint}</p> : null}
     </div>

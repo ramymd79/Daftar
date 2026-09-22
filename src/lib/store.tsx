@@ -44,7 +44,7 @@ type StoreApi = {
   addProject: (input: {
     name: string;
     address?: string;
-    clientId: string;
+    clientId?: string;
     status: ProjectStatus;
     contractType: ContractType;
     contractTotal: number;
@@ -84,6 +84,7 @@ type StoreApi = {
   ) => string;
   deleteTransaction: (id: string) => void;
   addCategory: (name: string) => string;
+  renameCategory: (id: string, name: string) => void;
   addAlbum: (input: {
     projectId: string;
     name: string;
@@ -179,7 +180,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           id,
           name: input.name.trim(),
           address: input.address?.trim() || undefined,
-          clientId: input.clientId,
+          clientId: input.clientId?.trim() || "",
           status: input.status,
           contractType: input.contractType,
           contractTotal: input.contractTotal,
@@ -313,6 +314,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           };
         });
         return id;
+      },
+      renameCategory: (id, name) => {
+        const trimmed = name.trim();
+        if (!trimmed) return;
+        setState((prev) => ({
+          ...prev,
+          categories: prev.categories.map((item) =>
+            item.id === id ? { ...item, name: trimmed } : item,
+          ),
+        }));
       },
       addAlbum: (input) => {
         const id = newId("alb");

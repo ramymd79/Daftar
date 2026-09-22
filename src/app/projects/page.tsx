@@ -29,6 +29,7 @@ export default function ProjectsPage() {
   const [clientId, setClientId] = useState("");
   const [newClient, setNewClient] = useState("");
   const [newPhone, setNewPhone] = useState("");
+  const [noClient, setNoClient] = useState(false);
   const [status, setStatus] = useState<ProjectStatus>("not_started");
   const [contractType, setContractType] = useState<ContractType>("fixed");
   const [contractTotal, setContractTotal] = useState("");
@@ -42,6 +43,7 @@ export default function ProjectsPage() {
     setClientId("");
     setNewClient("");
     setNewPhone("");
+    setNoClient(false);
     setStatus("not_started");
     setContractType("fixed");
     setContractTotal("");
@@ -56,14 +58,14 @@ export default function ProjectsPage() {
     if (!cid && newClient.trim()) {
       cid = addClient({ name: newClient, phone: newPhone });
     }
-    if (!cid) {
+    if (!cid && !noClient) {
       setStep("client");
       return;
     }
     const id = addProject({
       name,
       address,
-      clientId: cid,
+      clientId: cid || "",
       status,
       contractType,
       contractTotal: Number(contractTotal) || 0,
@@ -88,6 +90,7 @@ export default function ProjectsPage() {
               onClick={() => {
                 setClientId(client.id);
                 setNewClient("");
+                setNoClient(false);
                 setStep("basics");
               }}
             >
@@ -114,6 +117,7 @@ export default function ProjectsPage() {
               e.preventDefault();
               if (!newClient.trim()) return;
               setClientId("");
+              setNoClient(false);
               setStep("basics");
             }}
           >
@@ -134,6 +138,26 @@ export default function ProjectsPage() {
               اختيار العميل ده
             </button>
           </form>
+          <button
+            type="button"
+            className={`card flex w-full items-center justify-between text-right ${
+              noClient ? "border-[var(--brand)]" : ""
+            }`}
+            onClick={() => {
+              setClientId("");
+              setNewClient("");
+              setNewPhone("");
+              setNoClient(true);
+              setStep("basics");
+            }}
+          >
+            <span
+              className={`h-5 w-5 rounded-full border ${
+                noClient ? "border-[var(--brand)] bg-[var(--brand)]" : "border-stone-300"
+              }`}
+            />
+            <span className="font-bold">بدون عميل</span>
+          </button>
           <button type="button" className="btn btn-secondary w-full" onClick={() => setStep("basics")}>
             رجوع
           </button>
@@ -199,7 +223,9 @@ export default function ProjectsPage() {
             onChange={(e) => setAddress(e.target.value)}
           />
           <button type="button" className="input text-right" onClick={() => setStep("client")}>
-            {client?.name || newClient || "اختر العميل"}
+            {noClient
+              ? "بدون عميل"
+              : client?.name || newClient || "اختر العميل"}
           </button>
           <button type="button" className="input flex items-center justify-between" onClick={() => setStep("status")}>
             <span className="text-stone-500">حالة المشروع</span>

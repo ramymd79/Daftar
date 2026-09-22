@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { expenseBreakdown, expensesByCategory, filterTransactions, projectMoney, type LedgerKind, type LedgerSort } from "@/lib/logic";
+import { expenseBreakdown, expensesByCategory, filterTransactions, projectMoney, supervisionDueLabel, type LedgerKind, type LedgerSort } from "@/lib/logic";
 import { formatDay, formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
 
@@ -47,10 +47,10 @@ function PrintInner() {
       </header>
 
       <section className="mb-6 grid grid-cols-2 gap-3 text-center">
-        <Box label="المستلم" value={formatMoney(money.received)} />
-        <Box label="المتبقي" value={formatMoney(money.remaining)} />
-        <Box label="نسبة الإشراف المستلمة" value={formatMoney(money.supervisionReceived)} />
+        <Box label="المستلم (شامل الإشراف)" value={formatMoney(money.received)} />
+        <Box label="المتبقي بعد المصروف والإشراف" value={formatMoney(money.remaining)} />
         <Box label="المصروف" value={formatMoney(money.spent)} />
+        <Box label={supervisionDueLabel(project)} value={formatMoney(money.supervisionDue)} />
       </section>
 
       <section className="mb-6">
