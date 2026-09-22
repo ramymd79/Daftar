@@ -154,9 +154,7 @@ function ProjectInner() {
         <ProjectSettingsForm
           project={project}
           clients={state.clients}
-          albums={(state.albums || []).filter((album) => album.projectId === project.id)}
           onSave={updateProject}
-          onAlbumShare={(albumId, shared) => updateAlbum(albumId, { sharedWithClient: shared })}
         />
       ) : null}
     </AppShell>
@@ -402,13 +400,10 @@ function Gallery({
 function ProjectSettingsForm({
   project,
   clients,
-  albums,
   onSave,
-  onAlbumShare,
 }: {
   project: Project;
   clients: { id: string; name: string }[];
-  albums: Album[];
   onSave: (
     id: string,
     patch: {
@@ -419,10 +414,12 @@ function ProjectSettingsForm({
       contractType?: ContractType;
       contractTotal?: number;
       supervisionPct?: number;
+      showClientPortal?: boolean;
       showClientMoney?: boolean;
+      showClientGallery?: boolean;
+      showClientPrivatePhotos?: boolean;
     },
   ) => void;
-  onAlbumShare: (albumId: string, shared: boolean) => void;
 }) {
   const [name, setName] = useState(project.name);
   const [address, setAddress] = useState(project.address || "");
@@ -431,8 +428,14 @@ function ProjectSettingsForm({
   const [contractType, setContractType] = useState<ContractType>(project.contractType || "fixed");
   const [contractTotal, setContractTotal] = useState(String(project.contractTotal || ""));
   const [supervisionPct, setSupervisionPct] = useState(String(project.supervisionPct || 0));
+  const [showClientPortal, setShowClientPortal] = useState(project.showClientPortal !== false);
   const [showClientMoney, setShowClientMoney] = useState(project.showClientMoney !== false);
+  const [showClientGallery, setShowClientGallery] = useState(project.showClientGallery !== false);
+  const [showClientPrivatePhotos, setShowClientPrivatePhotos] = useState(
+    project.showClientPrivatePhotos === true,
+  );
   const [saved, setSaved] = useState(false);
+  const clientName = clients.find((client) => client.id === clientId)?.name || "عميل";
 
   useEffect(() => {
     setName(project.name);
@@ -442,11 +445,100 @@ function ProjectSettingsForm({
     setContractType(project.contractType || "fixed");
     setContractTotal(String(project.contractTotal || ""));
     setSupervisionPct(String(project.supervisionPct || 0));
+    setShowClientPortal(project.showClientPortal !== false);
     setShowClientMoney(project.showClientMoney !== false);
+    setShowClientGallery(project.showClientGallery !== false);
+    setShowClientPrivatePhotos(project.showClientPrivatePhotos === true);
   }, [project]);
+
+  function savePortal(patch: {
+    showClientPortal?: boolean;
+    showClientMoney?: boolean;
+    showClientGallery?: boolean;
+    showClientPrivatePhotos?: boolean;
+  }) {
+    onSave(project.id, patch);
+  }
 
   return (
     <div className="mt-3 space-y-3">
+      <section className="card space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="font-black">بوابة العميل</p>
+            <p className="text-sm font-semibold">{clientName}</p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={showClientPortal}
+            aria-label="بوابة العميل"
+            className={`relative h-7 w-12 shrink-0 rounded-full ${showClientPortal ? "bg-emerald-600" : "bg-stone-300"}`}
+            onClick={() => {
+              const next = !showClientPortal;
+              setShowClientPortal(next);
+              savePortal({ showClientPortal: next });
+            }}
+          >
+            <span
+              className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow ${showClientPortal ? "end-0.5" : "start-0.5"}`}
+            />
+          </button>
+        </div>
+        {showClientPortal ? (
+          <div className="space-y-2 border-t border-stone-100 pt-3">
+            <p className="text-sm font-bold">صلاحيات العرض</p>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={showClientMoney}
+                onChange={(e) => {
+                  setShowClientMoney(e.target.checked);
+                  savePortal({ showClientMoney: e.target.checked });
+                }}
+              />
+              <span>
+                <span className="block font-semibold">المالية</span>
+                <span className="text-xs text-stone-500">عرض المدفوعات على المشروع</span>
+              </span>
+            </label>
+            <label className="flex items-center gap-2 text-sm font-semibold">
+              <input
+                type="checkbox"
+                checked={showClientGallery}
+                onChange={(e) => {
+                  const next = e.target.checked;
+                  setShowClientGallery(next);
+                  if (!next) setShowClientPrivatePhotos(false);
+                  savePortal({
+                    showClientGallery: next,
+                    showClientPrivatePhotos: next ? showClientPrivatePhotos : false,
+                  });
+                }}
+              />
+              المعرض
+            </label>
+            {showClientGallery ? (
+              <label className="ms-6 flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={showClientPrivatePhotos}
+                  onChange={(e) => {
+                    setShowClientPrivatePhotos(e.target.checked);
+                    savePortal({ showClientPrivatePhotos: e.target.checked });
+                  }}
+                />
+                عرض الصور الخاصة
+              </label>
+            ) : null}
+          </div>
+        ) : null}
+        <Link href={`/client/?id=${encodeURIComponent(project.id)}`} className="btn btn-secondary w-full">
+          عرض كعميل
+          <span className="mt-1 block text-xs font-normal">معاينة المشروع كما يراه العميل — للقراءة فقط</span>
+        </Link>
+      </section>
       <form
         className="card space-y-3"
         onSubmit={(e: FormEvent) => {
@@ -460,7 +552,6 @@ function ProjectSettingsForm({
             contractType,
             contractTotal: Number(contractTotal) || 0,
             supervisionPct: Number(supervisionPct) || 0,
-            showClientMoney,
           });
           setSaved(true);
         }}
@@ -516,37 +607,11 @@ function ProjectSettingsForm({
           value={supervisionPct}
           onChange={(e) => setSupervisionPct(e.target.value)}
         />
-        <label className="flex items-center justify-between text-sm font-semibold">
-          العميل يشوف تبويب الفلوس
-          <input
-            type="checkbox"
-            checked={showClientMoney}
-            onChange={(e) => setShowClientMoney(e.target.checked)}
-          />
-        </label>
-        {albums.length > 0 ? (
-          <div className="space-y-2">
-            <p className="text-sm font-bold">ألبومات ظاهرة للعميل</p>
-            {albums.map((album) => (
-              <label key={album.id} className="flex items-center justify-between text-sm">
-                {album.name}
-                <input
-                  type="checkbox"
-                  checked={album.sharedWithClient}
-                  onChange={(e) => onAlbumShare(album.id, e.target.checked)}
-                />
-              </label>
-            ))}
-          </div>
-        ) : null}
         <button type="submit" className="btn btn-primary w-full">
           حفظ البيانات
         </button>
         {saved ? <p className="text-sm text-emerald-700">اتحفظ.</p> : null}
       </form>
-      <Link href={`/client/?id=${encodeURIComponent(project.id)}`} className="btn btn-secondary w-full">
-        شوف هيشوف العميل إيه
-      </Link>
     </div>
   );
 }

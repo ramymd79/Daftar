@@ -23,7 +23,10 @@ export type Project = {
   contractType: ContractType;
   contractTotal: number;
   supervisionPct: number;
+  showClientPortal?: boolean;
   showClientMoney?: boolean;
+  showClientGallery?: boolean;
+  showClientPrivatePhotos?: boolean;
   createdAt: string;
 };
 

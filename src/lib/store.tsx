@@ -60,7 +60,10 @@ type StoreApi = {
       contractType?: ContractType;
       contractTotal?: number;
       supervisionPct?: number;
+      showClientPortal?: boolean;
       showClientMoney?: boolean;
+      showClientGallery?: boolean;
+      showClientPrivatePhotos?: boolean;
     },
   ) => void;
   addAgreement: (input: {
@@ -120,7 +123,10 @@ function loadState(): AppState {
         contractType: project.contractType || "fixed",
         supervisionPct: project.supervisionPct || 0,
         contractTotal: project.contractTotal || 0,
+        showClientPortal: project.showClientPortal !== false,
         showClientMoney: project.showClientMoney !== false,
+        showClientGallery: project.showClientGallery !== false,
+        showClientPrivatePhotos: project.showClientPrivatePhotos === true,
       })),
     };
   } catch {
@@ -174,7 +180,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           contractType: input.contractType,
           contractTotal: input.contractTotal,
           supervisionPct: input.supervisionPct,
+          showClientPortal: true,
           showClientMoney: true,
+          showClientGallery: true,
+          showClientPrivatePhotos: false,
           createdAt: new Date().toISOString(),
         };
         setState((prev) => ({

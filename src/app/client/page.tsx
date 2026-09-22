@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { expenseBreakdown, expensesByCategory, projectMoney } from "@/lib/logic";
+import { expenseBreakdown, expensesByCategory, projectMoney, statusLabel } from "@/lib/logic";
 import { formatDay, formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
 
@@ -25,16 +25,27 @@ function ClientInner() {
   const client = state.clients.find((item) => item.id === project.clientId);
   const money = projectMoney(state, project.id);
   const rows = expensesByCategory(state, project.id);
-  const sharedAlbumIds = new Set(
+  const portalOpen = project.showClientPortal !== false;
+  const showMoney = portalOpen && project.showClientMoney !== false;
+  const showGallery = portalOpen && project.showClientGallery !== false;
+  const showPrivate = showGallery && project.showClientPrivatePhotos === true;
+  const visibleAlbumIds = new Set(
     (state.albums || [])
-      .filter((album) => album.projectId === project.id && album.sharedWithClient)
+      .filter(
+        (album) =>
+          album.projectId === project.id && (album.sharedWithClient || showPrivate),
+      )
       .map((album) => album.id),
   );
   const photos = state.photos.filter(
-    (photo) => photo.projectId === project.id && photo.albumId && sharedAlbumIds.has(photo.albumId),
+    (photo) => photo.projectId === project.id && photo.albumId && visibleAlbumIds.has(photo.albumId),
   );
-  const showMoney = project.showClientMoney !== false;
   const publicTxs = money.txs;
+
+  useEffect(() => {
+    if (showMoney) setTab("finance");
+    else if (showGallery) setTab("photos");
+  }, [showMoney, showGallery]);
 
   return (
     <div className="mx-auto min-h-dvh max-w-lg bg-[var(--bg)] pb-8">
@@ -53,7 +64,13 @@ function ClientInner() {
       <div className="px-4 pt-4">
         <p className="text-xs text-stone-500">مرحبًا</p>
         <h1 className="text-xl font-black">{project.name}</h1>
+        <p className="text-sm text-stone-500">{statusLabel(project.status)}</p>
 
+        {!portalOpen ? (
+          <p className="card mt-3 text-stone-500">بوابة العميل مقفولة على المشروع ده.</p>
+        ) : null}
+
+        {portalOpen && (showMoney || showGallery) ? (
         <div className="mt-3 grid grid-cols-2 gap-2 text-center">
           {showMoney ? (
             <button
@@ -64,14 +81,21 @@ function ClientInner() {
               المالية
             </button>
           ) : null}
-          <button
-            type="button"
-            className={`rounded-2xl px-3 py-2 text-sm font-bold ${tab === "photos" ? "bg-white" : "text-stone-500"}`}
-            onClick={() => setTab("photos")}
-          >
-            الصور
-          </button>
+          {showGallery ? (
+            <button
+              type="button"
+              className={`rounded-2xl px-3 py-2 text-sm font-bold ${tab === "photos" ? "bg-white" : "text-stone-500"}`}
+              onClick={() => setTab("photos")}
+            >
+              الصور
+            </button>
+          ) : null}
         </div>
+        ) : null}
+
+        {portalOpen && !showMoney && !showGallery ? (
+          <p className="card mt-3 text-stone-500">مفيش حاجة ظاهرة للعميل على المشروع ده.</p>
+        ) : null}
 
         {showMoney && tab === "finance" ? (
           <div className="mt-3 space-y-3">
@@ -147,7 +171,7 @@ function ClientInner() {
               </ul>
             </section>
           </div>
-        ) : (
+        ) : showGallery && tab === "photos" ? (
           <div className="mt-3 grid grid-cols-2 gap-2">
             {photos.length === 0 ? (
               <p className="card col-span-2 text-stone-500">مفيش صور ظاهرة للعميل.</p>
@@ -165,7 +189,7 @@ function ClientInner() {
               ))
             )}
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );
