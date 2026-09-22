@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { expensesByCategory, projectMoney } from "@/lib/logic";
+import { expenseBreakdown, expensesByCategory, projectMoney } from "@/lib/logic";
 import { formatDay, formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
 
@@ -69,18 +69,23 @@ function ClientInner() {
           <div className="mt-3 space-y-3">
             <div className="grid grid-cols-2 gap-2">
               <PortalCard
-                label="المستلم (شامل الإشراف)"
-                hint={project.contractTotal ? `من أصل ${formatMoney(project.contractTotal)}` : undefined}
+                label="المستلم"
+                hint={project.contractTotal ? `من أصل الميزانية ${formatMoney(project.contractTotal)}` : undefined}
                 value={formatMoney(money.received)}
               />
               <PortalCard
-                label="المتبقي بعد المصروف والإشراف"
+                label="المتبقي"
                 value={formatMoney(money.remaining)}
                 danger={money.remaining < 0}
               />
               <PortalCard
-                label={`نسبة الإشراف المستحقة (${project.supervisionPct || 0}%)`}
-                value={formatMoney(money.supervisionDue)}
+                label="نسبة الإشراف المستلمة"
+                hint={
+                  money.supervisionTarget > 0
+                    ? `من أصل نسبة إشراف ${formatMoney(money.supervisionTarget)}`
+                    : undefined
+                }
+                value={formatMoney(money.supervisionReceived)}
               />
               <PortalCard label="المصروف" value={formatMoney(money.spent)} danger />
             </div>
@@ -101,7 +106,7 @@ function ClientInner() {
                     </div>
                     <div className="grid grid-cols-3 text-center text-xs text-stone-600">
                       <span>مشتريات {formatMoney(row.purchase)}</span>
-                      <span>نقل {formatMoney(row.transport)}</span>
+                      <span>نقل وتشوين {formatMoney(row.transport)}</span>
                       <span>مقاولين {formatMoney(row.labor)}</span>
                     </div>
                   </div>
@@ -126,7 +131,9 @@ function ClientInner() {
                       {tx.notes || (tx.type === "client_payment" ? "دفعة" : "مصروف")}
                       <span className="block text-xs text-stone-500">{formatDay(tx.date)}</span>
                     </span>
-                    <span className="font-bold">{formatMoney(tx.amount)}</span>
+                    <span className="font-bold">
+                      {formatMoney(tx.type === "expense" ? expenseBreakdown(tx).total : tx.amount)}
+                    </span>
                   </li>
                 ))}
               </ul>

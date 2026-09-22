@@ -15,6 +15,10 @@ export function formatDay(iso: string): string {
 }
 
 export function dayToIso(day: string): string {
+  if (day.includes("T")) {
+    const parsed = new Date(day);
+    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString();
+  }
   const [year, month, date] = day.split("-").map(Number);
   return new Date(year, (month || 1) - 1, date || 1, 12, 0, 0).toISOString();
 }

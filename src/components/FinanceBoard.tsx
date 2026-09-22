@@ -1,32 +1,44 @@
 "use client";
 
 import { expensesByCategory, projectMoney } from "@/lib/logic";
-import { formatDay, formatMoney } from "@/lib/money";
+import { formatMoney } from "@/lib/money";
 import type { AppState } from "@/lib/types";
 
 export function FinanceBoard({
   state,
   projectId,
-  onDelete,
 }: {
   state: AppState;
   projectId: string;
-  onDelete?: (id: string) => void;
 }) {
+  const project = state.projects.find((item) => item.id === projectId);
   const money = projectMoney(state, projectId);
   const rows = expensesByCategory(state, projectId);
+  const budget = project?.contractTotal || 0;
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 overflow-hidden rounded-2xl bg-white text-center">
-        <div className="px-3 py-4">
-          <p className="text-xs text-stone-500">مستلم</p>
-          <p className="mt-1 text-2xl font-black">{formatMoney(money.received)}</p>
-        </div>
-        <div className="border-s border-stone-100 px-3 py-4">
-          <p className="text-xs text-stone-500">مصروف</p>
-          <p className="mt-1 text-2xl font-black text-[#b4533a]">{formatMoney(money.spent)}</p>
-        </div>
+      <div className="grid grid-cols-2 gap-2">
+        <MoneyCard
+          label="المستلم"
+          value={formatMoney(money.received)}
+          hint={budget > 0 ? `من أصل الميزانية ${formatMoney(budget)}` : undefined}
+        />
+        <MoneyCard
+          label="المتبقي"
+          value={formatMoney(money.remaining)}
+          tone={money.remaining < 0 ? "rose" : "green"}
+        />
+        <MoneyCard label="المصروف" value={formatMoney(money.spent)} />
+        <MoneyCard
+          label="نسبة الإشراف المستلمة"
+          value={formatMoney(money.supervisionReceived)}
+          hint={
+            money.supervisionTarget > 0
+              ? `من أصل نسبة إشراف ${formatMoney(money.supervisionTarget)}`
+              : undefined
+          }
+        />
       </div>
 
       {money.uncovered > 0 ? (
@@ -55,8 +67,12 @@ export function FinanceBoard({
             <div className="space-y-3">
               {rows.map((row) => (
                 <article key={row.category.id} className="overflow-hidden rounded-2xl border border-stone-100">
-                  <div className="flex items-center justify-between px-3 py-2">
-                    <span className="rounded-full bg-stone-100 px-3 py-1 text-sm font-bold">
+                  <div className="flex items-center justify-between gap-2 px-3 py-2">
+                    <span className="inline-flex items-center gap-2 rounded-full bg-stone-100 px-3 py-1 text-sm font-bold">
+                      <span
+                        className="inline-block h-2.5 w-2.5 rounded-full"
+                        style={{ background: row.category.color }}
+                      />
                       {row.category.name}
                     </span>
                     <span className="font-black">
@@ -66,7 +82,7 @@ export function FinanceBoard({
                   <div className="h-1" style={{ background: row.category.color }} />
                   <div className="grid grid-cols-3 bg-stone-50 text-center text-xs">
                     <KindCell label="مشتريات" value={row.purchase} />
-                    <KindCell label="نقل وتخزين" value={row.transport} />
+                    <KindCell label="نقل وتشوين" value={row.transport} />
                     <KindCell label="مقاولين" value={row.labor} />
                   </div>
                 </article>
@@ -75,72 +91,28 @@ export function FinanceBoard({
           </>
         )}
       </section>
+    </div>
+  );
+}
 
-      <section className="card">
-        <h2 className="mb-2 font-black">الحركات</h2>
-        {money.txs.length === 0 ? (
-          <p className="text-sm text-stone-500">لسه مفيش حركات.</p>
-        ) : (
-          <ul className="divide-y divide-stone-100">
-            {money.txs.map((tx) => {
-              const category = state.categories.find((item) => item.id === tx.categoryId);
-              const kind =
-                tx.expenseKind === "labor"
-                  ? "مقاولين"
-                  : tx.expenseKind === "transport"
-                    ? "نقل وتخزين"
-                    : tx.expenseKind === "purchase"
-                      ? "مشتريات"
-                      : "";
-              return (
-                <li key={tx.id} className="py-3 text-sm">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold">
-                        {tx.type === "client_payment"
-                          ? tx.notes || "دفعة من العميل"
-                          : tx.notes || category?.name || "مصروف"}
-                      </p>
-                      <p className="text-stone-500">
-                        {formatDay(tx.date)}
-                        {tx.type === "client_payment"
-                          ? tx.paymentClass === "supervision"
-                            ? " · من نسبة الإشراف"
-                            : " · من المصروفات"
-                          : category
-                            ? ` · ${category.name}${kind ? ` · ${kind}` : ""}`
-                            : ""}
-                      </p>
-                      {tx.privateNotes ? (
-                        <p className="mt-1 text-xs text-stone-400">ملاحظة خاصة: {tx.privateNotes}</p>
-                      ) : null}
-                    </div>
-                    <p
-                      className={`font-bold ${
-                        tx.type === "client_payment" ? "text-emerald-700" : "text-[#b4533a]"
-                      }`}
-                    >
-                      {tx.type === "client_payment" ? "+" : "−"}
-                      {formatMoney(tx.amount)}
-                    </p>
-                  </div>
-                  {onDelete ? (
-                    <button
-                      type="button"
-                      className="mt-1 text-xs text-rose-600"
-                      onClick={() => {
-                        if (window.confirm("تحذف الحركة دي؟")) onDelete(tx.id);
-                      }}
-                    >
-                      حذف
-                    </button>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+function MoneyCard({
+  label,
+  value,
+  hint,
+  tone = "stone",
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  tone?: "stone" | "green" | "rose";
+}) {
+  const valueColor =
+    tone === "green" ? "text-emerald-700" : tone === "rose" ? "text-rose-700" : "text-stone-900";
+  return (
+    <div className="rounded-2xl bg-white px-3 py-4 text-center">
+      <p className="text-xs text-stone-500">{label}</p>
+      <p className={`mt-1 text-2xl font-black ${valueColor}`}>{value}</p>
+      {hint ? <p className="mt-1 text-[11px] leading-snug text-stone-400">{hint}</p> : null}
     </div>
   );
 }

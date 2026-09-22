@@ -41,6 +41,8 @@ export type Transaction = {
   projectId: string;
   type: TxType;
   amount: number;
+  transportAmount?: number;
+  storageAmount?: number;
   date: string;
   notes?: string;
   privateNotes?: string;

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { expensesByCategory, projectMoney } from "@/lib/logic";
+import { expenseBreakdown, expensesByCategory, projectMoney } from "@/lib/logic";
 import { formatDay, formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
 
@@ -41,12 +41,9 @@ function PrintInner() {
       </header>
 
       <section className="mb-6 grid grid-cols-2 gap-3 text-center">
-        <Box label="المستلم (شامل الإشراف)" value={formatMoney(money.received)} />
-        <Box label="المتبقي بعد المصروف والإشراف" value={formatMoney(money.remaining)} />
-        <Box
-          label={`نسبة الإشراف المستحقة (${project.supervisionPct || 0}%)`}
-          value={formatMoney(money.supervisionDue)}
-        />
+        <Box label="المستلم" value={formatMoney(money.received)} />
+        <Box label="المتبقي" value={formatMoney(money.remaining)} />
+        <Box label="نسبة الإشراف المستلمة" value={formatMoney(money.supervisionReceived)} />
         <Box label="المصروف" value={formatMoney(money.spent)} />
       </section>
 
@@ -57,7 +54,7 @@ function PrintInner() {
             <tr className="border-b text-right">
               <th className="py-2">البند</th>
               <th className="py-2">مشتريات</th>
-              <th className="py-2">نقل وتخزين</th>
+              <th className="py-2">نقل وتشوين</th>
               <th className="py-2">مقاولين</th>
               <th className="py-2">الإجمالي</th>
             </tr>
@@ -103,7 +100,7 @@ function PrintInner() {
                   </td>
                   <td className="py-2 font-semibold">
                     {tx.type === "client_payment" ? "+" : "−"}
-                    {formatMoney(tx.amount)}
+                    {formatMoney(tx.type === "expense" ? expenseBreakdown(tx).total : tx.amount)}
                   </td>
                 </tr>
               );

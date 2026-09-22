@@ -22,7 +22,7 @@ import type {
 } from "./types";
 import { newId } from "./ids";
 
-const STORAGE_KEY = "daftar.v2";
+const STORAGE_KEY = "daftar.v3";
 
 const CATEGORY_COLORS = [
   "#e67e22",

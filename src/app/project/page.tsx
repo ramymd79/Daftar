@@ -20,7 +20,6 @@ function ProjectInner() {
   const params = useSearchParams();
   const {
     state,
-    deleteTransaction,
     updateProject,
     addPhoto,
     updatePhotoShare,
@@ -54,13 +53,7 @@ function ProjectInner() {
 
       {tab === "finance" ? (
         <div className="mt-3">
-          <FinanceBoard state={state} projectId={project.id} onDelete={deleteTransaction} />
-          <Link
-            href={`/print/?id=${encodeURIComponent(project.id)}`}
-            className="btn btn-secondary mt-3 w-full"
-          >
-            تحميل كشف PDF
-          </Link>
+          <FinanceBoard state={state} projectId={project.id} />
         </div>
       ) : null}
 

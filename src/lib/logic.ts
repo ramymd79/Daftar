@@ -2,7 +2,6 @@ import { sumBy } from "./money";
 import type {
   AppState,
   Category,
-  ExpenseKind,
   ProjectStatus,
   Transaction,
 } from "./types";
@@ -16,27 +15,53 @@ export function projectTransactions(
     .sort((a, b) => b.date.localeCompare(a.date));
 }
 
+export function expenseBreakdown(tx: Transaction): {
+  purchase: number;
+  transport: number;
+  labor: number;
+  total: number;
+} {
+  const hasSplit =
+    typeof tx.transportAmount === "number" || typeof tx.storageAmount === "number";
+  if (hasSplit) {
+    const purchase = tx.amount || 0;
+    const transport = (tx.transportAmount || 0) + (tx.storageAmount || 0);
+    return { purchase, transport, labor: 0, total: purchase + transport };
+  }
+  const amount = tx.amount || 0;
+  const kind = tx.expenseKind || "purchase";
+  return {
+    purchase: kind === "purchase" ? amount : 0,
+    transport: kind === "transport" ? amount : 0,
+    labor: kind === "labor" ? amount : 0,
+    total: amount,
+  };
+}
+
 export function projectMoney(state: AppState, projectId: string) {
   const txs = projectTransactions(state, projectId);
   const payments = txs.filter((t) => t.type === "client_payment");
   const expenses = txs.filter((t) => t.type === "expense");
-  const received = sumBy(payments, (t) => t.amount);
-  const spent = sumBy(expenses, (t) => t.amount);
-  const receivedForExpenses = sumBy(
+  const received = sumBy(
     payments.filter((t) => t.paymentClass !== "supervision"),
     (t) => t.amount,
   );
+  const supervisionReceived = sumBy(
+    payments.filter((t) => t.paymentClass === "supervision"),
+    (t) => t.amount,
+  );
+  const spent = sumBy(expenses, (t) => expenseBreakdown(t).total);
   const project = state.projects.find((item) => item.id === projectId);
-  const supervisionDue = project
-    ? Math.round((received * (project.supervisionPct || 0)) / 100)
+  const supervisionTarget = project
+    ? Math.round(((project.contractTotal || 0) * (project.supervisionPct || 0)) / 100)
     : 0;
-  const uncovered = Math.max(0, spent - receivedForExpenses);
-  const remaining = received - spent - supervisionDue;
+  const remaining = received - spent;
+  const uncovered = Math.max(0, spent - received);
   return {
     received,
     spent,
-    receivedForExpenses,
-    supervisionDue,
+    supervisionReceived,
+    supervisionTarget,
     uncovered,
     remaining,
     txs,
@@ -56,10 +81,6 @@ export type CategorySpend = {
   labor: number;
 };
 
-function kindOf(tx: Transaction): ExpenseKind {
-  return tx.expenseKind || "purchase";
-}
-
 export function expensesByCategory(
   state: AppState,
   projectId: string,
@@ -70,7 +91,10 @@ export function expensesByCategory(
     if (tx.type !== "expense") continue;
     const key = tx.categoryId || "cat_other";
     const row = map.get(key) || { purchase: 0, transport: 0, labor: 0 };
-    row[kindOf(tx)] += tx.amount;
+    const parts = expenseBreakdown(tx);
+    row.purchase += parts.purchase;
+    row.transport += parts.transport;
+    row.labor += parts.labor;
     map.set(key, row);
   }
   return state.categories
