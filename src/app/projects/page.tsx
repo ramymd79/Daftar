@@ -4,7 +4,8 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
-import { contractTypeLabel, projectMoney, statusLabel } from "@/lib/logic";
+import { ContractBudgetFields } from "@/components/ContractBudgetFields";
+import { projectMoney, statusLabel } from "@/lib/logic";
 import { formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
 import type { ContractType, ProjectStatus } from "@/lib/types";
@@ -19,8 +20,6 @@ const statuses: ProjectStatus[] = [
   "cancelled",
 ];
 
-const contractTypes: ContractType[] = ["contract", "fixed", "percent"];
-
 export default function ProjectsPage() {
   const { state, addProject, addClient } = useStore();
   const router = useRouter();
@@ -33,7 +32,8 @@ export default function ProjectsPage() {
   const [status, setStatus] = useState<ProjectStatus>("not_started");
   const [contractType, setContractType] = useState<ContractType>("fixed");
   const [contractTotal, setContractTotal] = useState("");
-  const [supervisionPct, setSupervisionPct] = useState("12");
+  const [supervisionPct, setSupervisionPct] = useState("");
+  const [supervisionAmount, setSupervisionAmount] = useState("");
 
   function reset() {
     setStep("list");
@@ -45,7 +45,8 @@ export default function ProjectsPage() {
     setStatus("not_started");
     setContractType("fixed");
     setContractTotal("");
-    setSupervisionPct("12");
+    setSupervisionPct("");
+    setSupervisionAmount("");
   }
 
   function onSave(e: FormEvent) {
@@ -66,7 +67,8 @@ export default function ProjectsPage() {
       status,
       contractType,
       contractTotal: Number(contractTotal) || 0,
-      supervisionPct: Number(supervisionPct) || 0,
+      supervisionPct: contractType === "percent" ? Number(supervisionPct) || 0 : 0,
+      supervisionAmount: contractType === "fixed" ? Number(supervisionAmount) || 0 : null,
     });
     reset();
     router.push(`/project/?id=${encodeURIComponent(id)}`);
@@ -230,50 +232,23 @@ export default function ProjectsPage() {
           </span>
         </div>
         <form onSubmit={onSave} className="space-y-3">
-          <p className="text-sm font-bold">نوع التعاقد</p>
-          <div className="grid grid-cols-3 gap-2">
-            {contractTypes.map((item) => (
-              <button
-                key={item}
-                type="button"
-                className={`rounded-2xl border px-2 py-3 text-sm font-bold ${
-                  contractType === item
-                    ? "border-[var(--brand)] bg-[#f3e6dc] text-[var(--brand-dark)]"
-                    : "border-stone-200 bg-white"
-                }`}
-                onClick={() => setContractType(item)}
-              >
-                {contractTypeLabel(item)}
-              </button>
-            ))}
-          </div>
-          <label className="block text-sm font-semibold">
-            الميزانية الإجمالية <span className="text-rose-600">مطلوب</span>
-            <input
-              className="input mt-1"
-              type="number"
-              inputMode="numeric"
-              min="1"
-              placeholder="أدخل المبلغ"
-              value={contractTotal}
-              onChange={(e) => setContractTotal(e.target.value)}
-              required
-            />
-          </label>
-          <label className="block text-sm font-semibold">
-            نسبة الإشراف <span className="text-rose-600">مطلوب</span>
-            <input
-              className="input mt-1"
-              type="number"
-              inputMode="numeric"
-              min="0"
-              max="100"
-              placeholder="٪"
-              value={supervisionPct}
-              onChange={(e) => setSupervisionPct(e.target.value)}
-              required
-            />
-          </label>
+          <ContractBudgetFields
+            contractType={contractType}
+            onContractType={(type) => {
+              setContractType(type);
+              if (type === "fixed" && !supervisionAmount) {
+                const total = Number(contractTotal) || 0;
+                const pct = Number(supervisionPct) || 0;
+                if (total > 0 && pct > 0) setSupervisionAmount(String(Math.round((total * pct) / 100)));
+              }
+            }}
+            contractTotal={contractTotal}
+            onContractTotal={setContractTotal}
+            supervisionPct={supervisionPct}
+            onSupervisionPct={setSupervisionPct}
+            supervisionAmount={supervisionAmount}
+            onSupervisionAmount={setSupervisionAmount}
+          />
           <button type="submit" className="btn btn-primary w-full">
             حفظ المشروع
           </button>

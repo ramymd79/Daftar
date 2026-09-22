@@ -49,6 +49,7 @@ type StoreApi = {
     contractType: ContractType;
     contractTotal: number;
     supervisionPct: number;
+    supervisionAmount?: number | null;
   }) => string;
   updateProject: (
     id: string,
@@ -60,6 +61,7 @@ type StoreApi = {
       contractType?: ContractType;
       contractTotal?: number;
       supervisionPct?: number;
+      supervisionAmount?: number | null;
       showClientPortal?: boolean;
       showClientMoney?: boolean;
       showClientGallery?: boolean;
@@ -182,6 +184,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           contractType: input.contractType,
           contractTotal: input.contractTotal,
           supervisionPct: input.supervisionPct,
+          supervisionAmount:
+            typeof input.supervisionAmount === "number" ? input.supervisionAmount : undefined,
           showClientPortal: true,
           showClientMoney: true,
           showClientGallery: true,
@@ -208,6 +212,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 patch.address !== undefined
                   ? patch.address.trim() || undefined
                   : project.address,
+              supervisionAmount:
+                patch.supervisionAmount === null
+                  ? undefined
+                  : patch.supervisionAmount !== undefined
+                    ? patch.supervisionAmount
+                    : project.supervisionAmount,
             };
           }),
         }));

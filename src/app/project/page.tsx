@@ -4,15 +4,11 @@ import Link from "next/link";
 import { FormEvent, Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
+import { ContractBudgetFields } from "@/components/ContractBudgetFields";
 import { FinanceBoard } from "@/components/FinanceBoard";
 import { ProjectTabs, type ProjectTab } from "@/components/ProjectTabs";
 import { readCompressedImage } from "@/lib/images";
-import {
-  contractTypeLabel,
-  expenseBreakdown,
-  expensesForPerson,
-  statusLabel,
-} from "@/lib/logic";
+import { expenseBreakdown, expensesForPerson, statusLabel } from "@/lib/logic";
 import { formatDay, formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
 import type { Album, ContractType, Project, ProjectStatus } from "@/lib/types";
@@ -73,6 +69,13 @@ function ProjectInner() {
           >
             <p className="text-lg font-black">اتفقت مع مقاول على المشروع؟</p>
             <p className="mt-1 text-sm text-stone-600">سجّل الاتفاق ع المشروع</p>
+          </Link>
+          <Link
+            href={`/contractor-payment/?projectId=${encodeURIComponent(project.id)}`}
+            className="card block text-center"
+          >
+            <p className="text-lg font-black">تسجيل مدفوعات مقاول</p>
+            <p className="mt-1 text-sm text-stone-600">سجل مدفوعات لمقاول مسؤول عن أعمال في المشروع</p>
           </Link>
           {agreements.length === 0 ? (
             <p className="text-sm text-stone-500">لسه مفيش اتفاقات.</p>
@@ -416,6 +419,7 @@ function ProjectSettingsForm({
       contractType?: ContractType;
       contractTotal?: number;
       supervisionPct?: number;
+      supervisionAmount?: number | null;
       showClientPortal?: boolean;
       showClientMoney?: boolean;
       showClientGallery?: boolean;
@@ -431,6 +435,13 @@ function ProjectSettingsForm({
   const [contractType, setContractType] = useState<ContractType>(project.contractType || "fixed");
   const [contractTotal, setContractTotal] = useState(String(project.contractTotal || ""));
   const [supervisionPct, setSupervisionPct] = useState(String(project.supervisionPct || 0));
+  const [supervisionAmount, setSupervisionAmount] = useState(
+    typeof project.supervisionAmount === "number"
+      ? String(project.supervisionAmount)
+      : project.contractType === "fixed"
+        ? String(Math.round(((project.contractTotal || 0) * (project.supervisionPct || 0)) / 100))
+        : "",
+  );
   const [showClientPortal, setShowClientPortal] = useState(project.showClientPortal !== false);
   const [showClientMoney, setShowClientMoney] = useState(project.showClientMoney !== false);
   const [showClientGallery, setShowClientGallery] = useState(project.showClientGallery !== false);
@@ -449,6 +460,13 @@ function ProjectSettingsForm({
     setContractType(project.contractType || "fixed");
     setContractTotal(String(project.contractTotal || ""));
     setSupervisionPct(String(project.supervisionPct || 0));
+    setSupervisionAmount(
+      typeof project.supervisionAmount === "number"
+        ? String(project.supervisionAmount)
+        : project.contractType === "fixed"
+          ? String(Math.round(((project.contractTotal || 0) * (project.supervisionPct || 0)) / 100))
+          : "",
+    );
     setShowClientPortal(project.showClientPortal !== false);
     setShowClientMoney(project.showClientMoney !== false);
     setShowClientGallery(project.showClientGallery !== false);
@@ -572,7 +590,8 @@ function ProjectSettingsForm({
             status,
             contractType,
             contractTotal: Number(contractTotal) || 0,
-            supervisionPct: Number(supervisionPct) || 0,
+            supervisionPct: contractType === "percent" ? Number(supervisionPct) || 0 : 0,
+            supervisionAmount: contractType === "fixed" ? Number(supervisionAmount) || 0 : null,
           });
           setSaved(true);
         }}
@@ -603,30 +622,22 @@ function ProjectSettingsForm({
           <option value="done">مكتمل</option>
           <option value="cancelled">ملغي</option>
         </select>
-        <select
-          className="input"
-          value={contractType}
-          onChange={(e) => setContractType(e.target.value as ContractType)}
-        >
-          <option value="contract">{contractTypeLabel("contract")}</option>
-          <option value="fixed">{contractTypeLabel("fixed")}</option>
-          <option value="percent">{contractTypeLabel("percent")}</option>
-        </select>
-        <input
-          className="input"
-          type="number"
-          min="0"
-          placeholder="الميزانية الإجمالية"
-          value={contractTotal}
-          onChange={(e) => setContractTotal(e.target.value)}
-        />
-        <input
-          className="input"
-          type="number"
-          min="0"
-          placeholder="نسبة الإشراف"
-          value={supervisionPct}
-          onChange={(e) => setSupervisionPct(e.target.value)}
+        <ContractBudgetFields
+          contractType={contractType}
+          onContractType={(type) => {
+            setContractType(type);
+            if (type === "fixed" && !supervisionAmount) {
+              const total = Number(contractTotal) || 0;
+              const pct = Number(supervisionPct) || 0;
+              if (total > 0 && pct > 0) setSupervisionAmount(String(Math.round((total * pct) / 100)));
+            }
+          }}
+          contractTotal={contractTotal}
+          onContractTotal={setContractTotal}
+          supervisionPct={supervisionPct}
+          onSupervisionPct={setSupervisionPct}
+          supervisionAmount={supervisionAmount}
+          onSupervisionAmount={setSupervisionAmount}
         />
         <button type="submit" className="btn btn-primary w-full">
           حفظ البيانات

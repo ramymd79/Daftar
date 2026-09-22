@@ -20,6 +20,7 @@ export function BottomNav() {
     pathname.startsWith("/print") ||
     pathname.startsWith("/money") ||
     pathname.startsWith("/agreement") ||
+    pathname.startsWith("/contractor-payment") ||
     pathname.startsWith("/guide");
 
   if (hide) return null;

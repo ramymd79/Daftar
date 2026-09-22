@@ -1,6 +1,6 @@
 "use client";
 
-import { expensesByCategory, projectMoney } from "@/lib/logic";
+import { expensesByCategory, projectMoney, supervisionBasisWord } from "@/lib/logic";
 import { formatMoney } from "@/lib/money";
 import type { AppState } from "@/lib/types";
 
@@ -35,7 +35,7 @@ export function FinanceBoard({
           value={formatMoney(money.supervisionReceived)}
           hint={
             money.supervisionTarget > 0
-              ? `من أصل نسبة إشراف ${formatMoney(money.supervisionTarget)}`
+              ? `من أصل ${supervisionBasisWord(project)} ${formatMoney(money.supervisionTarget)}`
               : undefined
           }
         />

@@ -2,6 +2,7 @@ import { sumBy } from "./money";
 import type {
   AppState,
   Category,
+  Project,
   ProjectStatus,
   Transaction,
 } from "./types";
@@ -52,9 +53,7 @@ export function projectMoney(state: AppState, projectId: string) {
   );
   const spent = sumBy(expenses, (t) => expenseBreakdown(t).total);
   const project = state.projects.find((item) => item.id === projectId);
-  const supervisionTarget = project
-    ? Math.round(((project.contractTotal || 0) * (project.supervisionPct || 0)) / 100)
-    : 0;
+  const supervisionTarget = supervisionTargetOf(project);
   const remaining = received - spent;
   const uncovered = Math.max(0, spent - received);
   return {
@@ -124,6 +123,18 @@ export function contractTypeLabel(type: string): string {
   if (type === "contract") return "عقد مقاولة";
   if (type === "percent") return "نسبة مئوية";
   return "مبلغ ثابت";
+}
+
+export function supervisionTargetOf(project?: Project): number {
+  if (!project || project.contractType === "contract") return 0;
+  if (project.contractType === "fixed" && typeof project.supervisionAmount === "number") {
+    return project.supervisionAmount;
+  }
+  return Math.round(((project.contractTotal || 0) * (project.supervisionPct || 0)) / 100);
+}
+
+export function supervisionBasisWord(project?: Project): string {
+  return project?.contractType === "fixed" ? "مبلغ إشراف" : "نسبة إشراف";
 }
 
 export type LedgerSort =

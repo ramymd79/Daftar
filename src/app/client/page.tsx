@@ -3,7 +3,13 @@
 import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { expenseBreakdown, expensesByCategory, projectMoney, statusLabel } from "@/lib/logic";
+import {
+  expenseBreakdown,
+  expensesByCategory,
+  projectMoney,
+  statusLabel,
+  supervisionBasisWord,
+} from "@/lib/logic";
 import { formatDay, formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
 
@@ -114,7 +120,7 @@ function ClientInner() {
                 label="نسبة الإشراف المستلمة"
                 hint={
                   money.supervisionTarget > 0
-                    ? `من أصل نسبة إشراف ${formatMoney(money.supervisionTarget)}`
+                    ? `من أصل ${supervisionBasisWord(project)} ${formatMoney(money.supervisionTarget)}`
                     : undefined
                 }
                 value={formatMoney(money.supervisionReceived)}
