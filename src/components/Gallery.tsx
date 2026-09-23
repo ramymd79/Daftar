@@ -10,6 +10,7 @@ type Photo = {
   albumId?: string;
   dataUrl: string;
   caption?: string;
+  hiddenFromClient?: boolean;
   createdAt: string;
 };
 
@@ -35,10 +36,10 @@ export function Gallery({
   albums: Album[];
   photos: Photo[];
   onAddAlbum: (input: { projectId: string; name: string; description?: string; sharedWithClient: boolean }) => string;
-  onUpdateAlbum: (albumId: string, patch: { name?: string; description?: string; sharedWithClient?: boolean }) => void;
+  onUpdateAlbum: (albumId: string, patch: { name?: string; description?: string; sharedWithClient?: boolean; coverPhotoId?: string | null }) => void;
   onDeleteAlbum: (albumId: string) => void;
   onAddPhoto: (input: { projectId: string; albumId?: string; dataUrl: string; caption?: string; sharedWithClient?: boolean }) => string;
-  onUpdatePhoto: (photoId: string, patch: { caption?: string; albumId?: string; sharedWithClient?: boolean }) => void;
+  onUpdatePhoto: (photoId: string, patch: { caption?: string; albumId?: string; hiddenFromClient?: boolean }) => void;
   onDeletePhoto: (photoId: string) => void;
 }) {
   const [query, setQuery] = useState("");
@@ -49,6 +50,8 @@ export function Gallery({
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [uploading, setUploading] = useState(false);
   const [openId, setOpenId] = useState("");
+  const [optionsId, setOptionsId] = useState("");
+  const [hideAsk, setHideAsk] = useState(false);
   const [moving, setMoving] = useState(false);
   const [editingCaption, setEditingCaption] = useState(false);
   const [captionDraft, setCaptionDraft] = useState("");
@@ -73,6 +76,7 @@ export function Gallery({
   }, [photos, albumId, newestFirst]);
   const openIndex = albumPhotos.findIndex((photo) => photo.id === openId);
   const open = openIndex >= 0 ? albumPhotos[openIndex] : undefined;
+  const option = photos.find((photo) => photo.id === optionsId);
   const doneCount = queue.filter((item) => item.status === "done").length;
 
   function addFiles(list: FileList | null) {
@@ -100,7 +104,6 @@ export function Gallery({
         albumId: album.id,
         dataUrl,
         caption: item.caption,
-        sharedWithClient: album.sharedWithClient,
       });
       setQueue((prev) => prev.map((row) => (row.key === item.key ? { ...row, status: "done" } : row)));
     }
@@ -173,8 +176,9 @@ export function Gallery({
             </div>
             <div className="grid grid-cols-2 gap-2">
               {albumPhotos.map((photo) => (
-                <button key={photo.id} type="button" className="overflow-hidden rounded-2xl bg-white" onClick={() => setOpenId(photo.id)}>
+                <button key={photo.id} type="button" className="overflow-hidden rounded-2xl bg-white text-right" onClick={() => { setOptionsId(photo.id); setHideAsk(false); }}>
                   <PhotoThumb photo={photo} />
+                  {photo.hiddenFromClient ? <p className="px-2 py-1 text-xs font-bold text-stone-500">مخفية عن العميل</p> : null}
                 </button>
               ))}
             </div>
@@ -227,6 +231,53 @@ export function Gallery({
           />
         ) : null}
 
+        {option ? (
+          <PhotoOptions
+            album={album}
+            photo={option}
+            albums={albums.filter((item) => item.id !== album.id)}
+            hideAsk={hideAsk}
+            editing={editingCaption}
+            captionDraft={captionDraft}
+            onClose={() => {
+              setOptionsId("");
+              setHideAsk(false);
+              setEditingCaption(false);
+            }}
+            onOpen={() => setOpenId(option.id)}
+            onEdit={() => {
+              setCaptionDraft(option.caption || "");
+              setEditingCaption(true);
+            }}
+            onCaptionDraft={setCaptionDraft}
+            onSaveCaption={() => {
+              onUpdatePhoto(option.id, { caption: captionDraft });
+              setEditingCaption(false);
+            }}
+            onCancelEdit={() => setEditingCaption(false)}
+            onAskHide={() => setHideAsk(true)}
+            onCancelHide={() => setHideAsk(false)}
+            onHide={() => {
+              onUpdatePhoto(option.id, { hiddenFromClient: true });
+              setHideAsk(false);
+            }}
+            onShow={() => onUpdatePhoto(option.id, { hiddenFromClient: false })}
+            onMove={(targetId) => {
+              onUpdatePhoto(option.id, { albumId: targetId });
+              setOptionsId("");
+            }}
+            onCover={() => {
+              onUpdateAlbum(album.id, { coverPhotoId: option.id });
+              setOptionsId("");
+            }}
+            onDelete={() => {
+              onDeletePhoto(option.id);
+              setOptionsId("");
+              if (openId === option.id) setOpenId("");
+            }}
+          />
+        ) : null}
+
         {open ? (
           <Viewer
             albumName={album.name}
@@ -248,7 +299,7 @@ export function Gallery({
             onCloseMove={() => setMoving(false)}
             onCancelEdit={() => setEditingCaption(false)}
             onPickAlbum={(target) => {
-              onUpdatePhoto(open.id, { albumId: target.id, sharedWithClient: target.sharedWithClient });
+              onUpdatePhoto(open.id, { albumId: target.id });
               setMoving(false);
               setOpenId("");
             }}
@@ -285,7 +336,7 @@ export function Gallery({
         <div className="grid grid-cols-2 gap-3">
           {shownAlbums.map((item) => {
             const rows = photos.filter((photo) => photo.albumId === item.id);
-            const cover = rows[0];
+            const cover = rows.find((photo) => photo.id === item.coverPhotoId) || rows[0];
             return (
               <div key={item.id} className="relative">
                 <button type="button" className="w-full text-right" onClick={() => setAlbumId(item.id)}>
@@ -496,6 +547,136 @@ function UploadSheet({
         </div>
       </div>
     </div>
+  );
+}
+
+function PhotoOptions({
+  album,
+  photo,
+  albums,
+  hideAsk,
+  editing,
+  captionDraft,
+  onClose,
+  onOpen,
+  onEdit,
+  onCaptionDraft,
+  onSaveCaption,
+  onCancelEdit,
+  onAskHide,
+  onCancelHide,
+  onHide,
+  onShow,
+  onMove,
+  onCover,
+  onDelete,
+}: {
+  album: Album;
+  photo: Photo;
+  albums: Album[];
+  hideAsk: boolean;
+  editing: boolean;
+  captionDraft: string;
+  onClose: () => void;
+  onOpen: () => void;
+  onEdit: () => void;
+  onCaptionDraft: (value: string) => void;
+  onSaveCaption: () => void;
+  onCancelEdit: () => void;
+  onAskHide: () => void;
+  onCancelHide: () => void;
+  onHide: () => void;
+  onShow: () => void;
+  onMove: (albumId: string) => void;
+  onCover: () => void;
+  onDelete: () => void;
+}) {
+  const [moving, setMoving] = useState(false);
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-3">
+      <div className="max-h-[85dvh] w-full max-w-lg overflow-auto rounded-3xl bg-[var(--bg)] p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <span className="w-6" />
+          <div className="text-center">
+            <p className="font-black">خيارات الصورة</p>
+            <p className="text-xs text-stone-500">{album.name}</p>
+          </div>
+          <button type="button" className="text-xl" onClick={onClose} aria-label="إغلاق">
+            ×
+          </button>
+        </div>
+        <button type="button" className="card mb-3 flex w-full items-center gap-3 text-right" onClick={onOpen}>
+          <span className="block w-16 shrink-0 overflow-hidden rounded-xl">
+            <PhotoThumb photo={photo} />
+          </span>
+          <span>
+            <span className="block font-bold">{photo.caption || "صورة بدون تسمية"}</span>
+            <span className="text-xs text-stone-500">{formatDay(photo.createdAt)}</span>
+          </span>
+        </button>
+        {editing ? (
+          <div className="card mb-3 space-y-2">
+            <p className="font-bold">تعديل التسمية</p>
+            <input className="input" value={captionDraft} onChange={(e) => onCaptionDraft(e.target.value)} placeholder="أضف وصفًا للصورة..." />
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" className="btn btn-primary" onClick={onSaveCaption}>حفظ</button>
+              <button type="button" className="btn btn-secondary" onClick={onCancelEdit}>إلغاء</button>
+            </div>
+          </div>
+        ) : null}
+        {moving ? (
+          <div className="card mb-3 space-y-2">
+            <p className="text-center font-black">انقل الصورة لألبوم</p>
+            {albums.length === 0 ? <p className="text-sm text-stone-500">مفيش ألبوم تاني.</p> : null}
+            {albums.map((item) => (
+              <button key={item.id} type="button" className="card w-full text-center font-bold" onClick={() => onMove(item.id)}>
+                {item.name}
+              </button>
+            ))}
+            <button type="button" className="btn btn-secondary w-full" onClick={() => setMoving(false)}>إلغاء</button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <OptionRow title="تعديل التسمية" hint="غيّر الوصف الظاهر مع الصورة." onClick={onEdit} />
+            {photo.hiddenFromClient ? (
+              <OptionRow title="إظهار للعميل" hint="الصورة ترجع تظهر في بوابة العميل." onClick={onShow} />
+            ) : (
+              <OptionRow title="إخفاء عن العميل" hint="لن تظهر هذه الصورة في بوابة العميل." onClick={onAskHide} />
+            )}
+            <OptionRow title="نقل لألبوم آخر" hint="انقل الصورة إلى ألبوم مختلف." onClick={() => setMoving(true)} />
+            <OptionRow
+              title="تعيين كصورة غلاف"
+              hint={album.coverPhotoId === photo.id ? "دي غلاف الألبوم دلوقتي." : "استخدم هذه الصورة كغلاف للألبوم."}
+              onClick={onCover}
+            />
+            <button type="button" className="card w-full text-center font-bold text-rose-700" onClick={onDelete}>
+              حذف
+            </button>
+          </div>
+        )}
+      </div>
+      {hideAsk ? (
+        <div className="absolute inset-0 grid place-items-center bg-black/30 p-6">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-4 text-center">
+            <p className="font-black">إخفاء الوسائط</p>
+            <p className="mt-2 text-sm text-stone-600">لن يتمكن العميل من رؤية هذا العنصر. هل تريد المتابعة؟</p>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button type="button" className="btn btn-primary" onClick={onHide}>إخفاء</button>
+              <button type="button" className="btn btn-secondary" onClick={onCancelHide}>إلغاء</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function OptionRow({ title, hint, onClick }: { title: string; hint: string; onClick: () => void }) {
+  return (
+    <button type="button" className="card w-full text-right" onClick={onClick}>
+      <span className="block font-bold">{title}</span>
+      <span className="text-xs text-stone-500">{hint}</span>
+    </button>
   );
 }
 

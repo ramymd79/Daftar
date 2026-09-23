@@ -43,7 +43,17 @@ type Draft = {
   max: string;
 };
 
-export function Ledger({ state, projectId }: { state: AppState; projectId: string }) {
+export function Ledger({
+  state,
+  projectId,
+  heading,
+  allowNotes = true,
+}: {
+  state: AppState;
+  projectId: string;
+  heading?: string;
+  allowNotes?: boolean;
+}) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
@@ -147,13 +157,14 @@ export function Ledger({ state, projectId }: { state: AppState; projectId: strin
     if (min !== "") params.set("min", min);
     if (max !== "") params.set("max", max);
     if (includeParty) params.set("party", "1");
-    if (includeNotes) params.set("notes", "1");
+    if (allowNotes && includeNotes) params.set("notes", "1");
     setPdfOpen(false);
     router.push(`/print/?${params.toString()}`);
   }
 
   return (
     <section className="space-y-3">
+      {heading ? <h2 className="font-black">{heading}</h2> : null}
       <input
         className="input"
         placeholder="بحث في الحسابات..."
@@ -353,10 +364,12 @@ export function Ledger({ state, projectId }: { state: AppState; projectId: strin
                 المورد / المقاول
                 <input type="checkbox" checked={includeParty} onChange={(e) => setIncludeParty(e.target.checked)} />
               </label>
-              <label className="flex items-center justify-between rounded-2xl border border-stone-200 bg-white px-3 py-3 text-sm font-bold">
-                الملاحظات
-                <input type="checkbox" checked={includeNotes} onChange={(e) => setIncludeNotes(e.target.checked)} />
-              </label>
+              {allowNotes ? (
+                <label className="flex items-center justify-between rounded-2xl border border-stone-200 bg-white px-3 py-3 text-sm font-bold">
+                  الملاحظات
+                  <input type="checkbox" checked={includeNotes} onChange={(e) => setIncludeNotes(e.target.checked)} />
+                </label>
+              ) : null}
             </div>
             <div className="grid grid-cols-2 gap-2">
               <button type="button" className="btn btn-primary" onClick={downloadPdf}>

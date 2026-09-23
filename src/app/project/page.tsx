@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, Suspense, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { ContractBudgetFields } from "@/components/ContractBudgetFields";
 import { FinanceBoard } from "@/components/FinanceBoard";
@@ -19,6 +19,7 @@ function ProjectInner() {
   const {
     state,
     updateProject,
+    deleteProject,
     addPhoto,
     deletePhoto,
     addAlbum,
@@ -167,6 +168,7 @@ function ProjectInner() {
           project={project}
           clients={state.clients}
           onSave={updateProject}
+          onDelete={deleteProject}
         />
       ) : null}
 
@@ -264,6 +266,7 @@ function ProjectSettingsForm({
   project,
   clients,
   onSave,
+  onDelete,
 }: {
   project: Project;
   clients: { id: string; name: string }[];
@@ -281,11 +284,13 @@ function ProjectSettingsForm({
       showClientPortal?: boolean;
       showClientMoney?: boolean;
       showClientGallery?: boolean;
-      showClientPrivatePhotos?: boolean;
       showClientTxNotes?: boolean;
     },
   ) => void;
+  onDelete: (id: string) => void;
 }) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
   const [name, setName] = useState(project.name);
   const [address, setAddress] = useState(project.address || "");
   const [clientId, setClientId] = useState(project.clientId);
@@ -303,9 +308,6 @@ function ProjectSettingsForm({
   const [showClientPortal, setShowClientPortal] = useState(project.showClientPortal !== false);
   const [showClientMoney, setShowClientMoney] = useState(project.showClientMoney !== false);
   const [showClientGallery, setShowClientGallery] = useState(project.showClientGallery !== false);
-  const [showClientPrivatePhotos, setShowClientPrivatePhotos] = useState(
-    project.showClientPrivatePhotos === true,
-  );
   const [showClientTxNotes, setShowClientTxNotes] = useState(project.showClientTxNotes === true);
   const [saved, setSaved] = useState(false);
   const clientName = clients.find((client) => client.id === clientId)?.name || "عميل";
@@ -328,7 +330,6 @@ function ProjectSettingsForm({
     setShowClientPortal(project.showClientPortal !== false);
     setShowClientMoney(project.showClientMoney !== false);
     setShowClientGallery(project.showClientGallery !== false);
-    setShowClientPrivatePhotos(project.showClientPrivatePhotos === true);
     setShowClientTxNotes(project.showClientTxNotes === true);
   }, [project]);
 
@@ -336,7 +337,6 @@ function ProjectSettingsForm({
     showClientPortal?: boolean;
     showClientMoney?: boolean;
     showClientGallery?: boolean;
-    showClientPrivatePhotos?: boolean;
     showClientTxNotes?: boolean;
   }) {
     onSave(project.id, patch);
@@ -344,11 +344,36 @@ function ProjectSettingsForm({
 
   return (
     <div className="mt-3 space-y-3">
+      <section className="space-y-2">
+        <p className="text-sm font-bold text-stone-500">إدارة المشروع</p>
+        <button type="button" className="card flex w-full items-center justify-between text-right" onClick={() => setEditing(true)}>
+          <span>
+            <span className="block font-black">تعديل المشروع</span>
+            <span className="text-xs text-stone-500">الاسم، العميل، الحالة، الميزانية</span>
+          </span>
+          <span aria-hidden="true">✎</span>
+        </button>
+        <button
+          type="button"
+          className="card flex w-full items-center justify-between text-right text-rose-700"
+          onClick={() => {
+            if (!window.confirm("تحذف المشروع؟ لا يمكن التراجع.")) return;
+            onDelete(project.id);
+            router.push("/projects/");
+          }}
+        >
+          <span>
+            <span className="block font-black">حذف المشروع</span>
+            <span className="text-xs">لا يمكن التراجع</span>
+          </span>
+          <span aria-hidden="true">⌫</span>
+        </button>
+      </section>
       <section className="card space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="font-black">بوابة العميل</p>
-            <p className="text-sm font-semibold">{clientName}</p>
+            <p className="text-sm font-semibold">مقفلة لـ {clientName}</p>
           </div>
           <button
             type="button"
@@ -380,62 +405,57 @@ function ProjectSettingsForm({
                   savePortal({ showClientMoney: e.target.checked });
                 }}
               />
-              <span>
-                <span className="block font-semibold">المالية</span>
-                <span className="text-xs text-stone-500">عرض المدفوعات على المشروع</span>
-              </span>
+              <span className="font-semibold">المالية</span>
             </label>
-            <label className="flex items-center gap-2 text-sm font-semibold">
+            <label className="ms-6 flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
-                checked={showClientGallery}
-                onChange={(e) => {
-                  const next = e.target.checked;
-                  setShowClientGallery(next);
-                  if (!next) setShowClientPrivatePhotos(false);
-                  savePortal({
-                    showClientGallery: next,
-                    showClientPrivatePhotos: next ? showClientPrivatePhotos : false,
-                  });
-                }}
-              />
-              المعرض
-            </label>
-            {showClientGallery ? (
-              <label className="ms-6 flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={showClientPrivatePhotos}
-                  onChange={(e) => {
-                    setShowClientPrivatePhotos(e.target.checked);
-                    savePortal({ showClientPrivatePhotos: e.target.checked });
-                  }}
-                />
-                عرض الصور الخاصة
-              </label>
-            ) : null}
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                className="mt-1"
                 checked={showClientTxNotes}
                 onChange={(e) => {
                   setShowClientTxNotes(e.target.checked);
                   savePortal({ showClientTxNotes: e.target.checked });
                 }}
               />
-              <span>
-                <span className="block font-semibold">عرض الملاحظات على المعاملات</span>
-                <span className="text-xs text-stone-500">الملاحظات الخاصة تفضل مخفية لو المربع مقفول</span>
-              </span>
+              عرض الملاحظات على المعاملات
+            </label>
+            <label className="flex items-center gap-2 text-sm font-semibold">
+              <input
+                type="checkbox"
+                checked={showClientGallery}
+                onChange={(e) => {
+                  setShowClientGallery(e.target.checked);
+                  savePortal({ showClientGallery: e.target.checked });
+                }}
+              />
+              المعرض
             </label>
           </div>
         ) : null}
-        <Link href={`/client/?id=${encodeURIComponent(project.id)}`} className="btn btn-secondary w-full">
-          عرض كعميل
-          <span className="mt-1 block text-xs font-normal">معاينة المشروع كما يراه العميل — للقراءة فقط</span>
+        <Link href={`/client/?id=${encodeURIComponent(project.id)}`} className="card flex items-center justify-between">
+          <span>
+            <span className="block font-black text-[var(--brand-dark)]">عرض كعميل</span>
+            <span className="text-xs text-stone-500">معاينة المشروع كما يراه العميل — للقراءة فقط</span>
+          </span>
+          <span aria-hidden="true">◉</span>
         </Link>
+        {showClientPortal ? (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-3">
+            <p className="font-black text-emerald-800">الوصول نشط</p>
+            <p className="text-sm text-emerald-900">يرى العميل المشروع من بوابة العميل</p>
+            <button
+              type="button"
+              className="btn mt-2 border border-rose-200 bg-white text-rose-700"
+              onClick={() => {
+                setShowClientPortal(false);
+                savePortal({ showClientPortal: false });
+              }}
+            >
+              إيقاف الصلاحية
+            </button>
+          </div>
+        ) : null}
       </section>
+      {editing ? (
       <form
         className="card space-y-3"
         onSubmit={(e: FormEvent) => {
@@ -452,6 +472,7 @@ function ProjectSettingsForm({
             supervisionAmount: contractType === "fixed" ? Number(supervisionAmount) || 0 : null,
           });
           setSaved(true);
+          setEditing(false);
         }}
       >
         <p className="font-bold">بيانات المشروع</p>
@@ -501,7 +522,11 @@ function ProjectSettingsForm({
           حفظ البيانات
         </button>
         {saved ? <p className="text-sm text-emerald-700">اتحفظ.</p> : null}
+        <button type="button" className="btn btn-secondary w-full" onClick={() => setEditing(false)}>
+          إلغاء
+        </button>
       </form>
+      ) : null}
     </div>
   );
 }

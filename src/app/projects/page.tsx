@@ -35,6 +35,7 @@ export default function ProjectsPage() {
   const [contractTotal, setContractTotal] = useState("");
   const [supervisionPct, setSupervisionPct] = useState("");
   const [supervisionAmount, setSupervisionAmount] = useState("");
+  const [query, setQuery] = useState("");
 
   function reset() {
     setStep("list");
@@ -303,7 +304,18 @@ export default function ProjectsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {state.projects.map((project) => {
+          <input
+            className="input"
+            placeholder="بحث بالاسم أو العميل..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          {state.projects.filter((project) => {
+            const text = query.trim();
+            if (!text) return true;
+            const client = state.clients.find((item) => item.id === project.clientId);
+            return project.name.includes(text) || (client?.name || "").includes(text);
+          }).map((project) => {
             const client = state.clients.find((item) => item.id === project.clientId);
             const money = projectMoney(state, project.id);
             return (

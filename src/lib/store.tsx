@@ -93,8 +93,9 @@ type StoreApi = {
   }) => string;
   updateAlbum: (
     albumId: string,
-    patch: { name?: string; description?: string; sharedWithClient?: boolean },
+    patch: { name?: string; description?: string; sharedWithClient?: boolean; coverPhotoId?: string | null },
   ) => void;
+  deleteProject: (id: string) => void;
   addPhoto: (input: {
     projectId: string;
     albumId?: string;
@@ -103,7 +104,10 @@ type StoreApi = {
     sharedWithClient?: boolean;
   }) => string;
   updatePhotoShare: (photoId: string, sharedWithClient: boolean) => void;
-  updatePhoto: (photoId: string, patch: { caption?: string; albumId?: string; sharedWithClient?: boolean }) => void;
+  updatePhoto: (
+    photoId: string,
+    patch: { caption?: string; albumId?: string; sharedWithClient?: boolean; hiddenFromClient?: boolean },
+  ) => void;
   deletePhoto: (photoId: string) => void;
   deleteAlbum: (albumId: string) => void;
 };
@@ -201,6 +205,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           projects: [project, ...prev.projects],
         }));
         return id;
+      },
+      deleteProject: (id) => {
+        setState((prev) => ({
+          ...prev,
+          projects: prev.projects.filter((project) => project.id !== id),
+          transactions: prev.transactions.filter((tx) => tx.projectId !== id),
+          agreements: prev.agreements.filter((item) => item.projectId !== id),
+          albums: (prev.albums || []).filter((album) => album.projectId !== id),
+          photos: prev.photos.filter((photo) => photo.projectId !== id),
+        }));
       },
       updateProject: (id, patch) => {
         setState((prev) => ({
@@ -353,6 +367,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                     patch.description !== undefined
                       ? patch.description.trim() || undefined
                       : album.description,
+                  coverPhotoId:
+                    patch.coverPhotoId === null
+                      ? undefined
+                      : patch.coverPhotoId !== undefined
+                        ? patch.coverPhotoId
+                        : album.coverPhotoId,
                 }
               : album,
           ),
@@ -366,7 +386,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           albumId: input.albumId,
           dataUrl: input.dataUrl,
           caption: input.caption?.trim() || undefined,
-          sharedWithClient: input.sharedWithClient ?? true,
+          sharedWithClient: true,
+          hiddenFromClient: false,
           createdAt: new Date().toISOString(),
         };
         setState((prev) => ({ ...prev, photos: [photo, ...prev.photos] }));
@@ -398,6 +419,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setState((prev) => ({
           ...prev,
           photos: prev.photos.filter((photo) => photo.id !== photoId),
+          albums: (prev.albums || []).map((album) =>
+            album.coverPhotoId === photoId ? { ...album, coverPhotoId: undefined } : album,
+          ),
         }));
       },
       deleteAlbum: (albumId) => {

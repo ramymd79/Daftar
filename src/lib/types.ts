@@ -77,6 +77,7 @@ export type Album = {
   name: string;
   description?: string;
   sharedWithClient: boolean;
+  coverPhotoId?: string;
   createdAt: string;
 };
 
@@ -87,6 +88,7 @@ export type GalleryPhoto = {
   dataUrl: string;
   caption?: string;
   sharedWithClient: boolean;
+  hiddenFromClient?: boolean;
   createdAt: string;
 };
 

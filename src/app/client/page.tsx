@@ -3,15 +3,11 @@
 import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import {
-  expenseBreakdown,
-  expensesByCategory,
-  projectMoney,
-  statusLabel,
-  supervisionDueLabel,
-} from "@/lib/logic";
-import { formatDay, formatMoney } from "@/lib/money";
+import { Ledger } from "@/components/Ledger";
+import { expensesByCategory, projectMoney, statusLabel, supervisionDueLabel } from "@/lib/logic";
+import { formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
+import type { Album, GalleryPhoto } from "@/lib/types";
 
 function ClientInner() {
   const params = useSearchParams();
@@ -34,27 +30,17 @@ function ClientInner() {
   const portalOpen = project.showClientPortal !== false;
   const showMoney = portalOpen && project.showClientMoney !== false;
   const showGallery = portalOpen && project.showClientGallery !== false;
-  const showPrivate = showGallery && project.showClientPrivatePhotos === true;
-  const visibleAlbumIds = new Set(
-    (state.albums || [])
-      .filter(
-        (album) =>
-          album.projectId === project.id && (album.sharedWithClient || showPrivate),
-      )
-      .map((album) => album.id),
+  const sharedAlbums = (state.albums || []).filter(
+    (album) => album.projectId === project.id && album.sharedWithClient,
   );
-  const photos = state.photos.filter(
-    (photo) => photo.projectId === project.id && photo.albumId && visibleAlbumIds.has(photo.albumId),
-  );
-  const publicTxs = money.txs;
 
   useEffect(() => {
-    if (showMoney) setTab("finance");
-    else if (showGallery) setTab("photos");
-  }, [showMoney, showGallery]);
+    if (tab === "finance" && !showMoney && showGallery) setTab("photos");
+    if (tab === "photos" && !showGallery && showMoney) setTab("finance");
+  }, [showMoney, showGallery, tab]);
 
   return (
-    <div className="mx-auto min-h-dvh max-w-lg bg-[var(--bg)] pb-8">
+    <div className="mx-auto min-h-dvh max-w-lg bg-[var(--bg)] pb-24">
       <div className="bg-emerald-800 px-4 py-3 text-sm text-white">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -74,29 +60,6 @@ function ClientInner() {
 
         {!portalOpen ? (
           <p className="card mt-3 text-stone-500">بوابة العميل مقفولة على المشروع ده.</p>
-        ) : null}
-
-        {portalOpen && (showMoney || showGallery) ? (
-        <div className="mt-3 grid grid-cols-2 gap-2 text-center">
-          {showMoney ? (
-            <button
-              type="button"
-              className={`rounded-2xl px-3 py-2 text-sm font-bold ${tab === "finance" ? "bg-white" : "text-stone-500"}`}
-              onClick={() => setTab("finance")}
-            >
-              المالية
-            </button>
-          ) : null}
-          {showGallery ? (
-            <button
-              type="button"
-              className={`rounded-2xl px-3 py-2 text-sm font-bold ${tab === "photos" ? "bg-white" : "text-stone-500"}`}
-              onClick={() => setTab("photos")}
-            >
-              الصور
-            </button>
-          ) : null}
-        </div>
         ) : null}
 
         {portalOpen && !showMoney && !showGallery ? (
@@ -154,54 +117,96 @@ function ClientInner() {
               </div>
             </section>
 
-            <section className="card">
-              <div className="mb-2 flex items-center justify-between">
-                <h2 className="font-black">الحركات</h2>
-                <Link
-                  href={`/print/?id=${encodeURIComponent(project.id)}`}
-                  className="text-sm font-bold text-[var(--brand)]"
-                >
-                  تحميل PDF
-                </Link>
-              </div>
-              <ul className="divide-y divide-stone-100 text-sm">
-                {publicTxs.map((tx) => (
-                  <li key={tx.id} className="flex justify-between gap-3 py-2">
-                    <span>
-                      {tx.notes || (tx.type === "client_payment" ? "دفعة" : "مصروف")}
-                      {project.showClientTxNotes && tx.privateNotes ? (
-                        <span className="block text-xs text-stone-600">{tx.privateNotes}</span>
-                      ) : null}
-                      <span className="block text-xs text-stone-500">{formatDay(tx.date)}</span>
-                    </span>
-                    <span className="font-bold">
-                      {formatMoney(tx.type === "expense" ? expenseBreakdown(tx).total : tx.amount)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </section>
+            <Ledger
+              state={state}
+              projectId={project.id}
+              heading="سجل المدفوعات"
+              allowNotes={project.showClientTxNotes === true}
+            />
           </div>
         ) : showGallery && tab === "photos" ? (
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            {photos.length === 0 ? (
-              <p className="card col-span-2 text-stone-500">مفيش صور ظاهرة للعميل.</p>
-            ) : (
-              photos.map((photo) => (
-                <div key={photo.id} className="card p-2">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={photo.dataUrl}
-                    alt={photo.caption || "صورة"}
-                    className="aspect-square w-full rounded-xl object-cover"
-                  />
-                  <p className="mt-2 truncate text-xs">{photo.caption}</p>
-                </div>
-              ))
-            )}
-          </div>
+          <ClientAlbums albums={sharedAlbums} photos={state.photos} />
         ) : null}
       </div>
+
+      {portalOpen && (showMoney || showGallery) ? (
+        <div className={`fixed inset-x-0 bottom-0 z-30 mx-auto grid max-w-lg border-t border-stone-200 bg-white text-center ${showMoney && showGallery ? "grid-cols-2" : "grid-cols-1"}`}>
+          {showMoney ? (
+            <button type="button" className={`px-3 py-3 text-sm font-bold ${tab === "finance" ? "text-[var(--brand)]" : "text-stone-500"}`} onClick={() => setTab("finance")}>
+              المالية
+            </button>
+          ) : null}
+          {showGallery ? (
+            <button type="button" className={`px-3 py-3 text-sm font-bold ${tab === "photos" ? "text-[var(--brand)]" : "text-stone-500"}`} onClick={() => setTab("photos")}>
+              الصور
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ClientAlbums({ albums, photos }: { albums: Album[]; photos: GalleryPhoto[] }) {
+  const [albumId, setAlbumId] = useState("");
+  const album = albums.find((item) => item.id === albumId);
+  const rows = photos.filter(
+    (photo) => photo.albumId === albumId && !photo.hiddenFromClient,
+  );
+  if (album) {
+    return (
+      <div className="mt-3 space-y-3">
+        <div className="flex items-center gap-2">
+          <button type="button" className="text-sm font-bold text-stone-500" onClick={() => setAlbumId("")}>
+            رجوع
+          </button>
+          <p className="min-w-0 flex-1 truncate text-center font-black">{album.name}</p>
+        </div>
+        {rows.length === 0 ? (
+          <p className="card text-stone-500">مفيش صور ظاهرة في الألبوم ده.</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {rows.map((photo) => (
+              <div key={photo.id} className="overflow-hidden rounded-2xl bg-white">
+                {photo.dataUrl.startsWith("data:application/pdf") ? (
+                  <span className="grid aspect-square place-items-center text-sm font-bold">PDF</span>
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={photo.dataUrl} alt={photo.caption || album.name} className="aspect-square w-full object-cover" />
+                )}
+                {photo.caption ? <p className="truncate px-2 py-1 text-xs">{photo.caption}</p> : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+  if (albums.length === 0) {
+    return <p className="card mt-3 text-stone-500">مفيش صور ظاهرة للعميل.</p>;
+  }
+  return (
+    <div className="mt-3 grid grid-cols-2 gap-3">
+      {albums.map((item) => {
+        const albumPhotos = photos.filter((photo) => photo.albumId === item.id && !photo.hiddenFromClient);
+        const cover = albumPhotos.find((photo) => photo.id === item.coverPhotoId) || albumPhotos[0];
+        return (
+          <button key={item.id} type="button" className="text-right" onClick={() => setAlbumId(item.id)}>
+            <div className="relative overflow-hidden rounded-2xl bg-emerald-50">
+              {cover && !cover.dataUrl.startsWith("data:application/pdf") ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={cover.dataUrl} alt="" className="aspect-square w-full object-cover" />
+              ) : (
+                <span className="grid aspect-square place-items-center text-3xl text-emerald-700/40">▦</span>
+              )}
+              <span className="absolute top-2 right-2 rounded-full bg-black/60 px-2 py-0.5 text-xs font-bold text-white">
+                {albumPhotos.length.toLocaleString("ar-EG")}
+              </span>
+            </div>
+            <p className="mt-2 truncate font-black">{item.name}</p>
+          </button>
+        );
+      })}
     </div>
   );
 }
