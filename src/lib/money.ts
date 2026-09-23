@@ -26,3 +26,39 @@ export function dayToIso(day: string): string {
 export function sumBy<T>(items: T[], pick: (item: T) => number): number {
   return items.reduce((acc, item) => acc + pick(item), 0);
 }
+
+export function parseUserNumber(value: string): number | null {
+  const normalized = value
+    .trim()
+    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0))
+    .replace(/[٪%]/g, "")
+    .replace(/[٬\s]/g, "")
+    .replace(/٫/g, ".")
+    .replace(/,/g, "");
+  if (!normalized || normalized === "." || normalized === "-") return null;
+  const amount = Number(normalized);
+  return Number.isFinite(amount) ? amount : null;
+}
+
+export function budgetFieldError(input: {
+  contractType: string;
+  contractTotal: string;
+  supervisionPct: string;
+  supervisionAmount: string;
+}): string {
+  const total = parseUserNumber(input.contractTotal);
+  if (total == null || total <= 0) {
+    return input.contractType === "contract" ? "اكتب سعر العقد" : "اكتب الميزانية";
+  }
+  if (input.contractType === "percent") {
+    const pct = parseUserNumber(input.supervisionPct);
+    if (pct == null) return "اكتب نسبة الإشراف";
+    if (pct < 0 || pct > 100) return "نسبة الإشراف من ٠ إلى ١٠٠";
+  }
+  if (input.contractType === "fixed") {
+    const amount = parseUserNumber(input.supervisionAmount);
+    if (amount == null || amount < 0) return "اكتب مبلغ الإشراف";
+  }
+  return "";
+}

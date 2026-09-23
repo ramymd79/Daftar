@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { ContractBudgetFields } from "@/components/ContractBudgetFields";
 import { projectMoney, statusLabel } from "@/lib/logic";
-import { formatMoney } from "@/lib/money";
+import { budgetFieldError, formatMoney, parseUserNumber } from "@/lib/money";
 import { useStore } from "@/lib/store";
 import type { ContractType, ProjectStatus } from "@/lib/types";
 
@@ -59,12 +59,7 @@ export default function ProjectsPage() {
   }
 
   function budgetError() {
-    if (!contractTotal.trim() || Number(contractTotal) <= 0) {
-      return contractType === "contract" ? "اكتب سعر العقد" : "اكتب الميزانية";
-    }
-    if (contractType === "percent" && !supervisionPct.trim()) return "اكتب نسبة الإشراف";
-    if (contractType === "fixed" && !supervisionAmount.trim()) return "اكتب مبلغ الإشراف";
-    return "";
+    return budgetFieldError({ contractType, contractTotal, supervisionPct, supervisionAmount });
   }
 
   function commit(choice: { clientId: string; noClient: boolean; newName?: string; newPhone?: string }) {
@@ -97,9 +92,9 @@ export default function ProjectsPage() {
       clientId: cid || "",
       status,
       contractType,
-      contractTotal: Number(contractTotal) || 0,
-      supervisionPct: contractType === "percent" ? Number(supervisionPct) || 0 : 0,
-      supervisionAmount: contractType === "fixed" ? Number(supervisionAmount) || 0 : null,
+      contractTotal: parseUserNumber(contractTotal) || 0,
+      supervisionPct: contractType === "percent" ? parseUserNumber(supervisionPct) || 0 : 0,
+      supervisionAmount: contractType === "fixed" ? parseUserNumber(supervisionAmount) || 0 : null,
     });
     reset();
     router.push(`/project/?id=${encodeURIComponent(id)}`);
@@ -356,9 +351,14 @@ export default function ProjectsPage() {
             contractType={contractType}
             onContractType={(type) => {
               setContractType(type);
-              if (type === "fixed" && !supervisionAmount) {
-                const total = Number(contractTotal) || 0;
-                const pct = Number(supervisionPct) || 0;
+              setNotice("");
+              if (type === "percent" && !supervisionPct.trim()) {
+                const amount = parseUserNumber(supervisionAmount);
+                if (amount != null && amount >= 0 && amount <= 100) setSupervisionPct(String(amount));
+              }
+              if (type === "fixed" && !supervisionAmount.trim()) {
+                const total = parseUserNumber(contractTotal) || 0;
+                const pct = parseUserNumber(supervisionPct) || 0;
                 if (total > 0 && pct > 0) setSupervisionAmount(String(Math.round((total * pct) / 100)));
               }
             }}
@@ -378,13 +378,15 @@ export default function ProjectsPage() {
               setNotice("");
             }}
           />
-          {notice ? <p className="text-sm font-bold text-rose-700">{notice}</p> : null}
-          <button type="submit" className="btn btn-primary w-full">
-            حفظ المشروع
-          </button>
-          <button type="button" className="btn btn-secondary w-full" onClick={reset}>
-            إلغاء
-          </button>
+          <div className="sticky bottom-24 z-30 space-y-2 bg-[var(--bg)] py-3">
+            {notice ? <p className="text-sm font-bold text-rose-700">{notice}</p> : null}
+            <button type="submit" className="btn btn-primary w-full">
+              حفظ المشروع
+            </button>
+            <button type="button" className="btn btn-secondary w-full" onClick={reset}>
+              إلغاء
+            </button>
+          </div>
         </form>
       </AppShell>
     );

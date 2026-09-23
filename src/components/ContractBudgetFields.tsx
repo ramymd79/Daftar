@@ -49,14 +49,12 @@ export function ContractBudgetFields({
       <label className="block text-sm font-semibold">
         {totalLabel} <span className="text-rose-600">مطلوب</span>
         <input
+          key="contract-total"
           className="input mt-1"
-          type="number"
-          inputMode="numeric"
-          min="1"
+          inputMode="decimal"
           placeholder={contractType === "contract" ? "مثال: ٧٥٠٠٠٠" : "أدخل المبلغ"}
           value={contractTotal}
           onChange={(e) => onContractTotal(e.target.value)}
-          required
         />
       </label>
       {contractType === "contract" ? (
@@ -67,15 +65,12 @@ export function ContractBudgetFields({
         <label className="block text-sm font-semibold">
           نسبة الإشراف <span className="text-rose-600">مطلوب</span>
           <input
+            key="supervision-pct"
             className="input mt-1"
-            type="number"
-            inputMode="numeric"
-            min="0"
-            max="100"
+            inputMode="decimal"
             placeholder="مثال: ١٠"
             value={supervisionPct}
             onChange={(e) => onSupervisionPct(e.target.value)}
-            required
           />
         </label>
       ) : null}
@@ -84,14 +79,12 @@ export function ContractBudgetFields({
         <label className="block text-sm font-semibold">
           مبلغ الإشراف الثابت <span className="text-rose-600">مطلوب</span>
           <input
+            key="supervision-amount"
             className="input mt-1"
-            type="number"
-            inputMode="numeric"
-            min="0"
+            inputMode="decimal"
             placeholder="مثال: ٥٠٠٠٠"
             value={supervisionAmount}
             onChange={(e) => onSupervisionAmount(e.target.value)}
-            required
           />
           <span className="mt-1 block text-xs font-normal text-stone-500">
             مبلغ الإشراف ثابت بغض النظر عن المصروفات

@@ -79,6 +79,11 @@ type StoreApi = {
   addClient: (input: { name: string; phone?: string }) => string;
   addContractor: (input: { name: string; phone?: string }) => string;
   addSupplier: (input: { name: string; phone?: string }) => string;
+  updatePerson: (
+    kind: "clients" | "contractors" | "suppliers",
+    id: string,
+    patch: { name: string; phone?: string },
+  ) => void;
   addTransaction: (
     input: Omit<Transaction, "id" | "createdAt"> & { id?: string },
   ) => string;
@@ -278,6 +283,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           contractors: [person, ...prev.contractors],
         }));
         return id;
+      },
+      updatePerson: (kind, id, patch) => {
+        const name = patch.name.trim();
+        if (!name) return;
+        const phone = patch.phone?.trim() || undefined;
+        setState((prev) => ({
+          ...prev,
+          [kind]: prev[kind].map((person) =>
+            person.id === id ? { ...person, name, phone } : person,
+          ),
+        }));
       },
       addSupplier: (input) => {
         const id = newId("sup");

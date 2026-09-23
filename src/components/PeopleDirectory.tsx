@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { expenseBreakdown, expensesForPerson, projectTotals } from "@/lib/logic";
 import { formatDay, formatMoney } from "@/lib/money";
@@ -173,7 +173,16 @@ function PersonDetail({
   total: number;
   onBack: () => void;
 }) {
-  const { state } = useStore();
+  const { state, updatePerson } = useStore();
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(person.name);
+  const [phone, setPhone] = useState(person.phone || "");
+  const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    setName(person.name);
+    setPhone(person.phone || "");
+  }, [person.name, person.phone]);
   const projects = useMemo(
     () => state.projects.filter((project) => project.clientId === person.id),
     [state.projects, person.id],
@@ -184,11 +193,55 @@ function PersonDetail({
     return expensesForPerson(state, key, person.id);
   }, [kind, person.id, state]);
 
+  function savePerson(event: FormEvent) {
+    event.preventDefault();
+    if (!name.trim()) {
+      setNotice("اكتب الاسم");
+      return;
+    }
+    updatePerson(kind, person.id, { name, phone });
+    setNotice("");
+    setEditing(false);
+  }
+
   return (
     <AppShell title={person.name}>
       <button type="button" className="mb-3 text-sm text-stone-500" onClick={onBack}>
         رجوع
       </button>
+      {editing ? (
+        <form onSubmit={savePerson} className="card mb-3 space-y-3">
+          <p className="font-bold">تعديل البيانات</p>
+          {notice ? <p className="text-sm font-bold text-rose-700">{notice}</p> : null}
+          <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
+          <input
+            className="input"
+            placeholder="الموبايل (اختياري)"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            inputMode="tel"
+          />
+          <button type="submit" className="btn btn-primary w-full">
+            حفظ
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary w-full"
+            onClick={() => {
+              setName(person.name);
+              setPhone(person.phone || "");
+              setNotice("");
+              setEditing(false);
+            }}
+          >
+            إلغاء
+          </button>
+        </form>
+      ) : (
+        <button type="button" className="btn btn-secondary mb-3 w-full" onClick={() => setEditing(true)}>
+          تعديل الاسم
+        </button>
+      )}
       {person.phone ? (
         <a className="card mb-3 block" href={`tel:${person.phone}`} dir="ltr">
           {person.phone}

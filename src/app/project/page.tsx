@@ -10,7 +10,7 @@ import { Ledger } from "@/components/Ledger";
 import { ProjectTabs, type ProjectTab } from "@/components/ProjectTabs";
 import { Gallery } from "@/components/Gallery";
 import { expenseBreakdown, expensesForPerson, statusLabel } from "@/lib/logic";
-import { formatDay, formatMoney } from "@/lib/money";
+import { budgetFieldError, formatDay, formatMoney, parseUserNumber } from "@/lib/money";
 import { useStore } from "@/lib/store";
 import type { ContractType, Project, ProjectStatus } from "@/lib/types";
 
@@ -310,9 +310,11 @@ function ProjectSettingsForm({
   const [showClientGallery, setShowClientGallery] = useState(project.showClientGallery !== false);
   const [showClientTxNotes, setShowClientTxNotes] = useState(project.showClientTxNotes === true);
   const [saved, setSaved] = useState(false);
-  const clientName = clients.find((client) => client.id === clientId)?.name || "عميل";
+  const [notice, setNotice] = useState("");
+  const clientName = clients.find((client) => client.id === clientId)?.name || (clientId ? "عميل" : "بدون عميل");
 
   useEffect(() => {
+    if (editing) return;
     setName(project.name);
     setAddress(project.address || "");
     setClientId(project.clientId);
@@ -331,7 +333,7 @@ function ProjectSettingsForm({
     setShowClientMoney(project.showClientMoney !== false);
     setShowClientGallery(project.showClientGallery !== false);
     setShowClientTxNotes(project.showClientTxNotes === true);
-  }, [project]);
+  }, [project, editing]);
 
   function savePortal(patch: {
     showClientPortal?: boolean;
@@ -346,7 +348,7 @@ function ProjectSettingsForm({
     <div className="mt-3 space-y-3">
       <section className="space-y-2">
         <p className="text-sm font-bold text-stone-500">إدارة المشروع</p>
-        <button type="button" className="card flex w-full items-center justify-between text-right" onClick={() => setEditing(true)}>
+        <button type="button" className="card flex w-full items-center justify-between text-right" onClick={() => { setSaved(false); setNotice(""); setEditing(true); }}>
           <span>
             <span className="block font-black">تعديل المشروع</span>
             <span className="text-xs text-stone-500">الاسم، العميل، الحالة، الميزانية</span>
@@ -368,6 +370,7 @@ function ProjectSettingsForm({
           </span>
           <span aria-hidden="true">⌫</span>
         </button>
+        {saved && !editing ? <p className="text-sm font-bold text-emerald-700">اتحفظ.</p> : null}
       </section>
       <section className="card space-y-3">
         <div className="flex items-center justify-between gap-3">
@@ -458,19 +461,34 @@ function ProjectSettingsForm({
       {editing ? (
       <form
         className="card space-y-3"
+        noValidate
         onSubmit={(e: FormEvent) => {
           e.preventDefault();
-          if (!name.trim() || !clientId) return;
+          if (!name.trim()) {
+            setNotice("اكتب اسم المشروع");
+            return;
+          }
+          const problem = budgetFieldError({
+            contractType,
+            contractTotal,
+            supervisionPct,
+            supervisionAmount,
+          });
+          if (problem) {
+            setNotice(problem);
+            return;
+          }
           onSave(project.id, {
             name,
             address,
             clientId,
             status,
             contractType,
-            contractTotal: Number(contractTotal) || 0,
-            supervisionPct: contractType === "percent" ? Number(supervisionPct) || 0 : 0,
-            supervisionAmount: contractType === "fixed" ? Number(supervisionAmount) || 0 : null,
+            contractTotal: parseUserNumber(contractTotal) || 0,
+            supervisionPct: contractType === "percent" ? parseUserNumber(supervisionPct) || 0 : 0,
+            supervisionAmount: contractType === "fixed" ? parseUserNumber(supervisionAmount) || 0 : null,
           });
+          setNotice("");
           setSaved(true);
           setEditing(false);
         }}
@@ -484,6 +502,7 @@ function ProjectSettingsForm({
           onChange={(e) => setAddress(e.target.value)}
         />
         <select className="input" value={clientId} onChange={(e) => setClientId(e.target.value)}>
+          <option value="">بدون عميل</option>
           {clients.map((client) => (
             <option key={client.id} value={client.id}>
               {client.name}
@@ -505,9 +524,14 @@ function ProjectSettingsForm({
           contractType={contractType}
           onContractType={(type) => {
             setContractType(type);
-            if (type === "fixed" && !supervisionAmount) {
-              const total = Number(contractTotal) || 0;
-              const pct = Number(supervisionPct) || 0;
+            setNotice("");
+            if (type === "percent" && !supervisionPct.trim()) {
+              const amount = parseUserNumber(supervisionAmount);
+              if (amount != null && amount >= 0 && amount <= 100) setSupervisionPct(String(amount));
+            }
+            if (type === "fixed" && !supervisionAmount.trim()) {
+              const total = parseUserNumber(contractTotal) || 0;
+              const pct = parseUserNumber(supervisionPct) || 0;
               if (total > 0 && pct > 0) setSupervisionAmount(String(Math.round((total * pct) / 100)));
             }
           }}
@@ -518,13 +542,15 @@ function ProjectSettingsForm({
           supervisionAmount={supervisionAmount}
           onSupervisionAmount={setSupervisionAmount}
         />
-        <button type="submit" className="btn btn-primary w-full">
-          حفظ البيانات
-        </button>
-        {saved ? <p className="text-sm text-emerald-700">اتحفظ.</p> : null}
-        <button type="button" className="btn btn-secondary w-full" onClick={() => setEditing(false)}>
-          إلغاء
-        </button>
+        <div className="sticky bottom-24 z-30 space-y-2 bg-[var(--bg)] py-3">
+          {notice ? <p className="text-sm font-bold text-rose-700">{notice}</p> : null}
+          <button type="submit" className="btn btn-primary w-full">
+            حفظ البيانات
+          </button>
+          <button type="button" className="btn btn-secondary w-full" onClick={() => { setNotice(""); setEditing(false); }}>
+            إلغاء
+          </button>
+        </div>
       </form>
       ) : null}
     </div>
