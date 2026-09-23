@@ -291,6 +291,7 @@ export default function ProjectsPage() {
     <AppShell
       title="المشاريع"
       showFab
+      onFabClick={() => setStep("basics")}
       action={
         <button type="button" className="btn btn-primary text-sm" onClick={() => setStep("basics")}>
           مشروع جديد
