@@ -36,6 +36,9 @@ export default function ProjectsPage() {
   const [supervisionPct, setSupervisionPct] = useState("");
   const [supervisionAmount, setSupervisionAmount] = useState("");
   const [query, setQuery] = useState("");
+  const [resumeSave, setResumeSave] = useState(false);
+  const [afterClient, setAfterClient] = useState<"basics" | "budget">("basics");
+  const [notice, setNotice] = useState("");
 
   function reset() {
     setStep("list");
@@ -50,17 +53,42 @@ export default function ProjectsPage() {
     setContractTotal("");
     setSupervisionPct("");
     setSupervisionAmount("");
+    setResumeSave(false);
+    setAfterClient("basics");
+    setNotice("");
   }
 
-  function onSave(e: FormEvent) {
-    e.preventDefault();
-    if (!name.trim()) return;
-    let cid = clientId;
-    if (!cid && newClient.trim()) {
-      cid = addClient({ name: newClient, phone: newPhone });
+  function budgetError() {
+    if (!contractTotal.trim() || Number(contractTotal) <= 0) {
+      return contractType === "contract" ? "اكتب سعر العقد" : "اكتب الميزانية";
     }
-    if (!cid && !noClient) {
+    if (contractType === "percent" && !supervisionPct.trim()) return "اكتب نسبة الإشراف";
+    if (contractType === "fixed" && !supervisionAmount.trim()) return "اكتب مبلغ الإشراف";
+    return "";
+  }
+
+  function commit(choice: { clientId: string; noClient: boolean; newName?: string; newPhone?: string }) {
+    if (!name.trim()) {
+      setNotice("اكتب اسم المشروع");
+      setResumeSave(false);
+      setStep("basics");
+      return;
+    }
+    let cid = choice.clientId;
+    if (!cid && choice.newName?.trim()) {
+      cid = addClient({ name: choice.newName, phone: choice.newPhone || "" });
+    }
+    if (!cid && !choice.noClient) {
+      setNotice("اختَر العميل، أو سجّل المشروع بدون عميل");
+      setResumeSave(true);
       setStep("client");
+      return;
+    }
+    const problem = budgetError();
+    if (problem) {
+      setNotice(problem);
+      setResumeSave(false);
+      setStep("budget");
       return;
     }
     const id = addProject({
@@ -77,10 +105,58 @@ export default function ProjectsPage() {
     router.push(`/project/?id=${encodeURIComponent(id)}`);
   }
 
+  function onSave(e: FormEvent) {
+    e.preventDefault();
+    commit({ clientId, noClient, newName: newClient, newPhone });
+  }
+
+  function pickExisting(id: string) {
+    setClientId(id);
+    setNewClient("");
+    setNewPhone("");
+    setNoClient(false);
+    setNotice("");
+    if (resumeSave) {
+      commit({ clientId: id, noClient: false });
+      return;
+    }
+    setStep(afterClient);
+  }
+
+  function pickNewClient(event: FormEvent) {
+    event.preventDefault();
+    if (!newClient.trim()) {
+      setNotice("اكتب اسم العميل");
+      return;
+    }
+    setClientId("");
+    setNoClient(false);
+    setNotice("");
+    if (resumeSave) {
+      commit({ clientId: "", noClient: false, newName: newClient, newPhone });
+      return;
+    }
+    setStep(afterClient);
+  }
+
+  function pickNoClient() {
+    setClientId("");
+    setNewClient("");
+    setNewPhone("");
+    setNoClient(true);
+    setNotice("");
+    if (resumeSave) {
+      commit({ clientId: "", noClient: true });
+      return;
+    }
+    setStep(afterClient);
+  }
+
   if (step === "client") {
     return (
       <AppShell title="اختر العميل">
         <div className="space-y-2">
+          {notice ? <p className="text-sm font-bold text-rose-700">{notice}</p> : null}
           {state.clients.map((client) => (
             <button
               key={client.id}
@@ -88,12 +164,7 @@ export default function ProjectsPage() {
               className={`card flex w-full items-center justify-between text-right ${
                 clientId === client.id ? "border-[var(--brand)]" : ""
               }`}
-              onClick={() => {
-                setClientId(client.id);
-                setNewClient("");
-                setNoClient(false);
-                setStep("basics");
-              }}
+              onClick={() => pickExisting(client.id)}
             >
               <span
                 className={`h-5 w-5 rounded-full border ${
@@ -112,16 +183,7 @@ export default function ProjectsPage() {
               </span>
             </button>
           ))}
-          <form
-            className="card space-y-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!newClient.trim()) return;
-              setClientId("");
-              setNoClient(false);
-              setStep("basics");
-            }}
-          >
+          <form className="card space-y-2" onSubmit={pickNewClient}>
             <p className="text-sm font-bold">عميل جديد</p>
             <input
               className="input"
@@ -144,13 +206,7 @@ export default function ProjectsPage() {
             className={`card flex w-full items-center justify-between text-right ${
               noClient ? "border-[var(--brand)]" : ""
             }`}
-            onClick={() => {
-              setClientId("");
-              setNewClient("");
-              setNewPhone("");
-              setNoClient(true);
-              setStep("basics");
-            }}
+            onClick={pickNoClient}
           >
             <span
               className={`h-5 w-5 rounded-full border ${
@@ -159,7 +215,15 @@ export default function ProjectsPage() {
             />
             <span className="font-bold">بدون عميل</span>
           </button>
-          <button type="button" className="btn btn-secondary w-full" onClick={() => setStep("basics")}>
+          <button
+            type="button"
+            className="btn btn-secondary w-full"
+            onClick={() => {
+              setResumeSave(false);
+              setNotice("");
+              setStep(resumeSave ? "budget" : "basics");
+            }}
+          >
             رجوع
           </button>
         </div>
@@ -211,11 +275,15 @@ export default function ProjectsPage() {
           </button>
         </div>
         <div className="space-y-3">
+          {notice ? <p className="text-sm font-bold text-rose-700">{notice}</p> : null}
           <input
             className="input"
             placeholder="اسم المشروع"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value);
+              if (e.target.value.trim()) setNotice("");
+            }}
           />
           <input
             className="input"
@@ -223,7 +291,15 @@ export default function ProjectsPage() {
             value={address}
             onChange={(e) => setAddress(e.target.value)}
           />
-          <button type="button" className="input text-right" onClick={() => setStep("client")}>
+          <button
+            type="button"
+            className="input text-right"
+            onClick={() => {
+              setAfterClient("basics");
+              setNotice("");
+              setStep("client");
+            }}
+          >
             {noClient
               ? "بدون عميل"
               : client?.name || newClient || "اختر العميل"}
@@ -232,7 +308,24 @@ export default function ProjectsPage() {
             <span className="text-stone-500">حالة المشروع</span>
             <span className="font-bold">{statusLabel(status)}</span>
           </button>
-          <button type="button" className="btn btn-primary w-full" onClick={() => setStep("budget")}>
+          <button
+            type="button"
+            className="btn btn-primary w-full"
+            onClick={() => {
+              if (!name.trim()) {
+                setNotice("اكتب اسم المشروع");
+                return;
+              }
+              if (!clientId && !newClient.trim() && !noClient) {
+                setNotice("اختَر العميل، أو سجّل المشروع بدون عميل");
+                setAfterClient("budget");
+                setStep("client");
+                return;
+              }
+              setNotice("");
+              setStep("budget");
+            }}
+          >
             التالي
           </button>
           <button type="button" className="btn btn-secondary w-full" onClick={reset}>
@@ -258,7 +351,7 @@ export default function ProjectsPage() {
             الميزانية
           </span>
         </div>
-        <form onSubmit={onSave} className="space-y-3">
+        <form onSubmit={onSave} noValidate className="space-y-3">
           <ContractBudgetFields
             contractType={contractType}
             onContractType={(type) => {
@@ -270,12 +363,22 @@ export default function ProjectsPage() {
               }
             }}
             contractTotal={contractTotal}
-            onContractTotal={setContractTotal}
+            onContractTotal={(value) => {
+              setContractTotal(value);
+              setNotice("");
+            }}
             supervisionPct={supervisionPct}
-            onSupervisionPct={setSupervisionPct}
+            onSupervisionPct={(value) => {
+              setSupervisionPct(value);
+              setNotice("");
+            }}
             supervisionAmount={supervisionAmount}
-            onSupervisionAmount={setSupervisionAmount}
+            onSupervisionAmount={(value) => {
+              setSupervisionAmount(value);
+              setNotice("");
+            }}
           />
+          {notice ? <p className="text-sm font-bold text-rose-700">{notice}</p> : null}
           <button type="submit" className="btn btn-primary w-full">
             حفظ المشروع
           </button>
