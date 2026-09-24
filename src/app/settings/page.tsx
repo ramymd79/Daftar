@@ -52,6 +52,19 @@ export default function SettingsPage() {
           </button>
         </form>
 
+        <div className="card space-y-2">
+          <p className="font-bold">الفريق</p>
+          <p className="text-sm text-stone-600">دعوة الشريك وصلاحياته لسه مش شغالة.</p>
+          <button type="button" disabled aria-disabled="true" className="btn btn-secondary w-full opacity-60">
+            إرسال الدعوة · لسه مش شغالة
+          </button>
+        </div>
+
+        <div className="card space-y-2">
+          <p className="font-bold">ربح المكتب</p>
+          <p className="text-sm text-stone-600">الرقم لسه مش ظاهر، لأن مكانه في الشاشة لسه من غير لقطة.</p>
+        </div>
+
         <button
           type="button"
           className="btn btn-secondary w-full"

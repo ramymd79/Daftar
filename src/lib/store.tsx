@@ -82,7 +82,7 @@ type StoreApi = {
   updatePerson: (
     kind: "clients" | "contractors" | "suppliers",
     id: string,
-    patch: { name: string; phone?: string },
+    patch: { name: string; phone?: string; email?: string; notes?: string },
   ) => void;
   addTransaction: (
     input: Omit<Transaction, "id" | "createdAt"> & { id?: string },
@@ -287,12 +287,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       updatePerson: (kind, id, patch) => {
         const name = patch.name.trim();
         if (!name) return;
-        const phone = patch.phone?.trim() || undefined;
         setState((prev) => ({
           ...prev,
-          [kind]: prev[kind].map((person) =>
-            person.id === id ? { ...person, name, phone } : person,
-          ),
+          [kind]: prev[kind].map((person) => {
+            if (person.id !== id) return person;
+            const next: Person = { ...person, name };
+            if ("phone" in patch) next.phone = patch.phone?.trim() || undefined;
+            if ("email" in patch) next.email = patch.email?.trim() || undefined;
+            if ("notes" in patch) next.notes = patch.notes?.trim() || undefined;
+            return next;
+          }),
         }));
       },
       addSupplier: (input) => {
