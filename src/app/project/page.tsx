@@ -434,6 +434,15 @@ function ProjectSettingsForm({
             </label>
           </div>
         ) : null}
+        <button
+          type="button"
+          disabled
+          aria-disabled="true"
+          className="w-full rounded-xl border border-dashed border-stone-300 bg-stone-100 px-3 py-3 text-center"
+        >
+          <span className="block font-black text-stone-500">إرسال دعوة للعميل على إميله</span>
+          <span className="mt-1 block text-xs font-normal text-stone-500">لسه مش شغالة</span>
+        </button>
         <Link href={`/client/?id=${encodeURIComponent(project.id)}`} className="card flex items-center justify-between">
           <span>
             <span className="block font-black text-[var(--brand-dark)]">عرض كعميل</span>
