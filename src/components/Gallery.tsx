@@ -322,6 +322,34 @@ export function Gallery({
     );
   }
 
+  if (albums.length === 0) {
+    return (
+      <div className="flex min-h-[60dvh] flex-col items-center justify-center px-6 pb-24 text-center">
+        <div className="relative grid h-24 w-24 place-items-center rounded-3xl bg-[#f3e6df] text-[var(--brand)]">
+          <ImageIcon />
+          <span className="absolute -top-1 -left-1 grid h-7 w-7 place-items-center rounded-full bg-[var(--fab)] text-lg font-black text-white">
+            +
+          </span>
+        </div>
+        <p className="mt-6 text-xl font-black">لا توجد ألبومات بعد</p>
+        <p className="mt-2 max-w-xs text-sm leading-6 text-stone-500">
+          أنشئ أول ألبوم لتنظيم صور المشروع ومشاركتها مع العميل.
+        </p>
+        <button type="button" className="btn btn-primary mt-6 px-8" onClick={() => setEditor("new")}>
+          إنشاء ألبوم
+        </button>
+        <button
+          type="button"
+          className="fixed bottom-20 left-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--fab)] text-3xl text-white shadow-lg"
+          aria-label="ألبوم جديد"
+          onClick={() => setEditor("new")}
+        >
+          +
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="mt-3 space-y-3 pb-24">
       <input
@@ -331,7 +359,7 @@ export function Gallery({
         onChange={(e) => setQuery(e.target.value)}
       />
       {shownAlbums.length === 0 ? (
-        <p className="card text-sm text-stone-500">{albums.length === 0 ? "لسه مفيش ألبومات." : "مفيش ألبوم بالاسم ده."}</p>
+        <p className="card text-sm text-stone-500">مفيش ألبوم بالاسم ده.</p>
       ) : (
         <div className="grid grid-cols-2 gap-3">
           {shownAlbums.map((item) => {
@@ -412,43 +440,82 @@ function AlbumForm({
   }
 
   return (
-    <form className="mt-3 space-y-3" onSubmit={submit}>
-      <div className="flex items-center gap-2">
-        <button type="button" className="text-sm font-bold text-stone-500" onClick={onCancel}>
-          رجوع
-        </button>
-        <p className="flex-1 text-center font-black">{album ? "تعديل الألبوم" : "إنشاء ألبوم جديد"}</p>
-        <span className="w-10" />
-      </div>
-      <label className="block text-sm font-semibold">
-        اسم الألبوم <span className="text-rose-600">مطلوب</span>
-        <input className="input mt-1" value={name} onChange={(e) => setName(e.target.value)} required />
-      </label>
-      <label className="block text-sm font-semibold">
-        وصف <span className="font-normal text-stone-400">اختياري</span>
-        <input className="input mt-1" placeholder="وصف اختياري..." value={description} onChange={(e) => setDescription(e.target.value)} />
-      </label>
-      <div className="flex items-center justify-between rounded-2xl bg-white px-3 py-3 text-sm font-semibold">
-        مشترك مع العميل
+    <form className="fixed inset-0 z-[80] flex flex-col bg-[var(--bg)]" onSubmit={submit}>
+      <div className="mx-auto grid w-full max-w-lg grid-cols-[2.75rem_1fr_2.75rem] items-center px-4 py-4">
         <button
           type="button"
-          role="switch"
-          aria-checked={shared}
-          className={`h-7 w-12 rounded-full p-1 ${shared ? "bg-[var(--brand)]" : "bg-stone-300"}`}
-          onClick={() => setShared((value) => !value)}
+          className="grid h-11 w-11 place-items-center rounded-2xl border border-stone-200 bg-white"
+          aria-label="رجوع"
+          onClick={onCancel}
         >
-          <span className={`block h-5 w-5 rounded-full bg-white transition ${shared ? "translate-x-0" : "-translate-x-5"}`} />
+          <span aria-hidden="true">→</span>
         </button>
+        <p className="text-center text-lg font-black">{album ? "تعديل الألبوم" : "إنشاء ألبوم جديد"}</p>
+        <span />
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <button type="submit" className="btn btn-primary" disabled={!name.trim()}>
-          {album ? "حفظ" : "إنشاء"}
+      <div className="mx-auto w-full max-w-lg flex-1 space-y-4 overflow-y-auto px-4">
+        <FieldLabel label="اسم الألبوم" hint="مطلوب" />
+        <input
+          className="input"
+          placeholder="اسم الألبوم"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+        />
+        {album ? null : (
+          <>
+            <FieldLabel label="وصف" hint="اختياري" />
+            <input
+              className="input"
+              placeholder="وصف اختياري..."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </>
+        )}
+        <p className="pt-2 text-sm font-bold">المشاركة مع العميل</p>
+        <div className="flex items-center justify-between rounded-2xl bg-white px-3 py-3 text-sm font-semibold">
+          مشترك مع العميل
+          <button
+            type="button"
+            role="switch"
+            aria-checked={shared}
+            aria-label="مشترك مع العميل"
+            className={`flex h-7 w-12 items-center rounded-full p-1 ${shared ? "justify-start bg-[var(--brand)]" : "justify-end bg-stone-300"}`}
+            onClick={() => setShared((value) => !value)}
+          >
+            <span className="block h-5 w-5 rounded-full bg-white" />
+          </button>
+        </div>
+      </div>
+      <div className="mx-auto grid w-full max-w-lg grid-cols-2 gap-2 px-4 py-4">
+        <button type="submit" className="btn btn-primary disabled:opacity-60" disabled={!name.trim()}>
+          {album ? "حفظ التعديلات" : "إنشاء"}
         </button>
         <button type="button" className="btn btn-secondary" onClick={onCancel}>
           إلغاء
         </button>
       </div>
     </form>
+  );
+}
+
+function FieldLabel({ label, hint }: { label: string; hint: string }) {
+  return (
+    <div className="flex items-center justify-between text-sm font-bold">
+      <span>{label}</span>
+      <span className="font-normal text-stone-400">{hint}</span>
+    </div>
+  );
+}
+
+function ImageIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-10 w-10" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <circle cx="9" cy="10" r="1.4" />
+      <path d="M7 17l4-4 3 3 2-2 3 3" />
+    </svg>
   );
 }
 
