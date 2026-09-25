@@ -60,6 +60,10 @@ export function Gallery({
   const [editingCaption, setEditingCaption] = useState(false);
   const [captionDraft, setCaptionDraft] = useState("");
   const [newestFirst, setNewestFirst] = useState(true);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [bulkHide, setBulkHide] = useState(false);
+  const [bulkDelete, setBulkDelete] = useState(false);
+  const [bulkMove, setBulkMove] = useState(false);
   const filesRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -186,24 +190,76 @@ export function Gallery({
         ) : (
           <>
             <div className="flex items-center justify-between">
-              <button type="button" className="text-sm font-bold text-[var(--brand)]" onClick={() => setUploadOpen(true)}>
-                رفع صور
-              </button>
-              <button type="button" className="rounded-full bg-white px-3 py-1 text-sm font-bold" onClick={() => setNewestFirst((value) => !value)}>
-                {newestFirst ? "الأحدث أولًا" : "الأقدم أولًا"}
-              </button>
+              {picked.length > 0 ? (
+                <p className="font-black">{picked.length.toLocaleString("ar-EG")} محددة</p>
+              ) : (
+                <button type="button" className="text-sm font-bold text-[var(--brand)]" onClick={() => setUploadOpen(true)}>
+                  رفع صور
+                </button>
+              )}
+              <div className="flex items-center gap-2">
+                <button type="button" className="rounded-full bg-white px-3 py-1 text-sm font-bold" onClick={() => setNewestFirst((value) => !value)}>
+                  {newestFirst ? "الأحدث أولًا" : "الأقدم أولًا"}
+                </button>
+                {picked.length > 0 ? (
+                  <button type="button" className="grid h-9 w-9 place-items-center rounded-full bg-white font-black" aria-label="إغلاق" onClick={() => setPicked([])}>
+                    ×
+                  </button>
+                ) : null}
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              {albumPhotos.map((photo) => (
-                <button key={photo.id} type="button" className="overflow-hidden rounded-2xl bg-white text-right" onClick={() => { setOptionsId(photo.id); setHideAsk(false); }}>
-                  <PhotoThumb photo={photo} />
-                  {photo.hiddenFromClient ? <p className="px-2 py-1 text-xs font-bold text-stone-500">مخفية عن العميل</p> : null}
-                </button>
-              ))}
+              {albumPhotos.map((photo) => {
+                const on = picked.includes(photo.id);
+                return (
+                  <div key={photo.id} className="relative overflow-hidden rounded-2xl bg-white">
+                    <button
+                      type="button"
+                      className="block w-full text-right"
+                      onClick={() => {
+                        if (picked.length > 0) {
+                          setPicked((prev) => (prev.includes(photo.id) ? prev.filter((id) => id !== photo.id) : [...prev, photo.id]));
+                          return;
+                        }
+                        setOpenId(photo.id);
+                      }}
+                    >
+                      <PhotoThumb photo={photo} />
+                      {photo.hiddenFromClient ? (
+                        <span className="absolute bottom-2 right-2 rounded-full bg-stone-900/80 px-2 py-0.5 text-[11px] font-bold text-white">مخفية</span>
+                      ) : null}
+                      {on ? (
+                        <span className="absolute top-2 left-2 grid h-6 w-6 place-items-center rounded-full bg-[var(--brand)] text-sm text-white">✓</span>
+                      ) : null}
+                    </button>
+                    {picked.length === 0 ? (
+                      <button
+                        type="button"
+                        className="absolute top-2 left-2 grid h-8 w-8 place-items-center rounded-full bg-white/90 text-lg font-black"
+                        aria-label="خيارات الصورة"
+                        onClick={() => {
+                          setOptionsId(photo.id);
+                          setHideAsk(false);
+                        }}
+                      >
+                        …
+                      </button>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
+            {picked.length > 0 ? (
+              <div className="fixed inset-x-0 bottom-20 z-50 mx-auto grid max-w-lg grid-cols-3 gap-2 px-4">
+                <button type="button" className="btn bg-rose-600 text-white" onClick={() => setBulkDelete(true)}>حذف</button>
+                <button type="button" className="btn btn-secondary" onClick={() => setBulkHide(true)}>إخفاء</button>
+                <button type="button" className="btn btn-secondary" onClick={() => setBulkMove(true)}>نقل</button>
+              </div>
+            ) : null}
           </>
         )}
 
+        {picked.length === 0 ? (
         <button
           type="button"
           className="fixed bottom-20 left-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--fab)] text-2xl text-white shadow-lg"
@@ -216,6 +272,7 @@ export function Gallery({
             <circle cx="12" cy="13" r="3" />
           </svg>
         </button>
+        ) : null}
         <input
           ref={cameraRef}
           type="file"
@@ -255,6 +312,7 @@ export function Gallery({
             album={album}
             photo={option}
             albums={albums.filter((item) => item.id !== album.id)}
+            counts={Object.fromEntries(albums.map((item) => [item.id, photos.filter((photo) => photo.albumId === item.id).length]))}
             hideAsk={hideAsk}
             editing={editingCaption}
             captionDraft={captionDraft}
@@ -285,6 +343,10 @@ export function Gallery({
               onUpdatePhoto(option.id, { albumId: targetId });
               setOptionsId("");
             }}
+            onSelect={() => {
+              setPicked([option.id]);
+              setOptionsId("");
+            }}
             onCover={() => {
               onUpdateAlbum(album.id, { coverPhotoId: option.id });
               setOptionsId("");
@@ -304,6 +366,7 @@ export function Gallery({
             index={openIndex}
             total={albumPhotos.length}
             albums={albums.filter((item) => item.id !== album.id)}
+            counts={Object.fromEntries(albums.map((item) => [item.id, photos.filter((photo) => photo.albumId === item.id).length]))}
             moving={moving}
             editingCaption={editingCaption}
             captionDraft={captionDraft}
@@ -331,10 +394,6 @@ export function Gallery({
               onUpdatePhoto(open.id, { caption: captionDraft });
               setEditingCaption(false);
             }}
-            onDelete={() => {
-              onDeletePhoto(open.id);
-              setOpenId("");
-            }}
           />
         ) : null}
         {deleting ? (
@@ -345,6 +404,50 @@ export function Gallery({
               onDeleteAlbum(deleting.id);
               setDeleteAlbumId("");
               setAlbumId("");
+              setPicked([]);
+            }}
+          />
+        ) : null}
+        {bulkDelete ? (
+          <ConfirmCard
+            title="حذف العناصر المحددة"
+            body={`هل أنت متأكد من حذف ${picked.length === 1 ? "عنصر واحد" : `${picked.length.toLocaleString("ar-EG")} عناصر`} من ألبوم «${album.name}»؟ لا يمكن التراجع عن هذا الإجراء.`}
+            confirmLabel="حذف"
+            danger
+            onCancel={() => setBulkDelete(false)}
+            onConfirm={() => {
+              picked.forEach((id) => onDeletePhoto(id));
+              setPicked([]);
+              setBulkDelete(false);
+            }}
+          />
+        ) : null}
+        {bulkHide ? (
+          <ConfirmCard
+            title="إخفاء العناصر المحددة"
+            body={`لن يتمكن العميل من رؤية ${picked.length.toLocaleString("ar-EG")} عنصر. هل تريد المتابعة؟`}
+            confirmLabel="إخفاء"
+            onCancel={() => setBulkHide(false)}
+            onConfirm={() => {
+              picked.forEach((id) => onUpdatePhoto(id, { hiddenFromClient: true }));
+              setPicked([]);
+              setBulkHide(false);
+            }}
+          />
+        ) : null}
+        {bulkMove ? (
+          <MoveSheet
+            fromName={album.name}
+            targets={albums.filter((item) => item.id !== album.id).map((item) => ({
+              id: item.id,
+              name: item.name,
+              count: photos.filter((photo) => photo.albumId === item.id).length,
+            }))}
+            onClose={() => setBulkMove(false)}
+            onMove={(targetId) => {
+              picked.forEach((id) => onUpdatePhoto(id, { albumId: targetId }));
+              setPicked([]);
+              setBulkMove(false);
             }}
           />
         ) : null}
@@ -893,6 +996,7 @@ function PhotoOptions({
   album,
   photo,
   albums,
+  counts,
   hideAsk,
   editing,
   captionDraft,
@@ -907,12 +1011,14 @@ function PhotoOptions({
   onHide,
   onShow,
   onMove,
+  onSelect,
   onCover,
   onDelete,
 }: {
   album: Album;
   photo: Photo;
   albums: Album[];
+  counts: Record<string, number>;
   hideAsk: boolean;
   editing: boolean;
   captionDraft: string;
@@ -927,10 +1033,13 @@ function PhotoOptions({
   onHide: () => void;
   onShow: () => void;
   onMove: (albumId: string) => void;
+  onSelect: () => void;
   onCover: () => void;
   onDelete: () => void;
 }) {
   const [moving, setMoving] = useState(false);
+  const [showAsk, setShowAsk] = useState(false);
+  const [deleteAsk, setDeleteAsk] = useState(false);
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-3">
       <div className="max-h-[85dvh] w-full max-w-lg overflow-auto rounded-3xl bg-[var(--bg)] p-4">
@@ -964,21 +1073,22 @@ function PhotoOptions({
           </div>
         ) : null}
         {moving ? (
-          <div className="card mb-3 space-y-2">
-            <p className="text-center font-black">انقل الصورة لألبوم</p>
-            {albums.length === 0 ? <p className="text-sm text-stone-500">مفيش ألبوم تاني.</p> : null}
-            {albums.map((item) => (
-              <button key={item.id} type="button" className="card w-full text-center font-bold" onClick={() => onMove(item.id)}>
-                {item.name}
-              </button>
-            ))}
-            <button type="button" className="btn btn-secondary w-full" onClick={() => setMoving(false)}>إلغاء</button>
-          </div>
+          <MoveSheet
+            fromName={album.name}
+            targets={albums.map((item) => ({
+              id: item.id,
+              name: item.name,
+              count: counts[item.id] || 0,
+            }))}
+            onClose={() => setMoving(false)}
+            onMove={(targetId) => onMove(targetId)}
+          />
         ) : (
           <div className="space-y-2">
+            <OptionRow title="تحديد" hint="ابدأ اختيار عدة صور من الألبوم." onClick={onSelect} />
             <OptionRow title="تعديل التسمية" hint="غيّر الوصف الظاهر مع الصورة." onClick={onEdit} />
             {photo.hiddenFromClient ? (
-              <OptionRow title="إظهار للعميل" hint="الصورة ترجع تظهر في بوابة العميل." onClick={onShow} />
+              <OptionRow title="إظهار للعميل" hint="اجعل هذه الصورة مرئية في بوابة العميل." onClick={() => setShowAsk(true)} />
             ) : (
               <OptionRow title="إخفاء عن العميل" hint="لن تظهر هذه الصورة في بوابة العميل." onClick={onAskHide} />
             )}
@@ -988,24 +1098,119 @@ function PhotoOptions({
               hint={album.coverPhotoId === photo.id ? "دي غلاف الألبوم دلوقتي." : "استخدم هذه الصورة كغلاف للألبوم."}
               onClick={onCover}
             />
-            <button type="button" className="card w-full text-center font-bold text-rose-700" onClick={onDelete}>
-              حذف
+            <button type="button" className="card w-full text-right" onClick={() => setDeleteAsk(true)}>
+              <span className="block font-bold text-rose-700">حذف</span>
+              <span className="text-xs text-stone-500">إزالة الصورة نهائياً من المعرض.</span>
             </button>
           </div>
         )}
       </div>
       {hideAsk ? (
-        <div className="absolute inset-0 grid place-items-center bg-black/30 p-6">
-          <div className="w-full max-w-sm rounded-3xl bg-white p-4 text-center">
-            <p className="font-black">إخفاء الوسائط</p>
-            <p className="mt-2 text-sm text-stone-600">لن يتمكن العميل من رؤية هذا العنصر. هل تريد المتابعة؟</p>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <button type="button" className="btn btn-primary" onClick={onHide}>إخفاء</button>
-              <button type="button" className="btn btn-secondary" onClick={onCancelHide}>إلغاء</button>
-            </div>
-          </div>
-        </div>
+        <ConfirmCard
+          title="إخفاء الوسائط"
+          body="لن يتمكن العميل من رؤية هذا العنصر. هل تريد المتابعة؟"
+          confirmLabel="إخفاء"
+          onCancel={onCancelHide}
+          onConfirm={onHide}
+        />
       ) : null}
+      {showAsk ? (
+        <ConfirmCard
+          title="جعل الوسائط مرئية"
+          body="سيتمكن العميل من رؤية هذا العنصر. هل تريد المتابعة؟"
+          confirmLabel="اجعله مرئي"
+          onCancel={() => setShowAsk(false)}
+          onConfirm={() => {
+            setShowAsk(false);
+            onShow();
+          }}
+        />
+      ) : null}
+      {deleteAsk ? (
+        <ConfirmCard
+          title="حذف هذه الصورة؟"
+          body={`سيتم حذف هذه الصورة من ألبوم «${album.name}». لن تظهر في المعرض أو البوابة. لا يمكن التراجع عن هذا الإجراء.`}
+          confirmLabel="حذف"
+          danger
+          onCancel={() => setDeleteAsk(false)}
+          onConfirm={onDelete}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function ConfirmCard({
+  title,
+  body,
+  confirmLabel,
+  danger,
+  onCancel,
+  onConfirm,
+}: {
+  title: string;
+  body: string;
+  confirmLabel: string;
+  danger?: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[90] grid place-items-center bg-black/40 p-6">
+      <div className="w-full max-w-sm rounded-3xl bg-white p-4 text-center">
+        <p className="text-lg font-black">{title}</p>
+        <p className="mt-2 text-sm leading-6 text-stone-600">{body}</p>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button type="button" className={`btn ${danger ? "bg-rose-600 text-white" : "btn-primary"}`} onClick={onConfirm}>
+            {confirmLabel}
+          </button>
+          <button type="button" className="btn btn-secondary" onClick={onCancel}>إلغاء</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MoveSheet({
+  fromName,
+  targets,
+  onClose,
+  onMove,
+}: {
+  fromName: string;
+  targets: { id: string; name: string; count: number }[];
+  onClose: () => void;
+  onMove: (albumId: string) => void;
+}) {
+  const [chosen, setChosen] = useState("");
+  return (
+    <div className="fixed inset-0 z-[85] flex items-end justify-center bg-black/40">
+      <button type="button" className="absolute inset-0" aria-label="إغلاق" onClick={onClose} />
+      <div className="relative max-h-[85dvh] w-full max-w-lg overflow-auto rounded-t-3xl bg-[var(--bg)] p-4">
+        <div className="mb-3 text-center">
+          <p className="font-black">نقل الصورة</p>
+          <p className="text-sm text-stone-500">من {fromName}</p>
+        </div>
+        <p className="mb-2 text-sm font-bold">اختر الألبوم الجديد</p>
+        {targets.length === 0 ? <p className="text-sm text-stone-500">لا توجد ألبومات أخرى للنقل إليها</p> : null}
+        <div className="space-y-2">
+          {targets.map((item) => (
+            <button key={item.id} type="button" className="card flex w-full items-center justify-between text-right" onClick={() => setChosen(item.id)}>
+              <span>
+                <span className="block font-black">{item.name}</span>
+                <span className="text-xs text-stone-500">{item.count.toLocaleString("ar-EG")} صورة</span>
+              </span>
+              <span className={`grid h-5 w-5 place-items-center rounded-full border ${chosen === item.id ? "border-[var(--brand)] bg-[var(--brand)]" : "border-stone-300"}`} />
+            </button>
+          ))}
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button type="button" className="btn btn-primary disabled:opacity-60" disabled={!chosen} onClick={() => onMove(chosen)}>
+            نقل الصورة
+          </button>
+          <button type="button" className="btn btn-secondary" onClick={onClose}>إلغاء</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1025,6 +1230,7 @@ function Viewer({
   index,
   total,
   albums,
+  counts,
   moving,
   editingCaption,
   captionDraft,
@@ -1038,13 +1244,13 @@ function Viewer({
   onCancelEdit,
   onCaptionDraft,
   onSaveCaption,
-  onDelete,
 }: {
   albumName: string;
   photo: Photo;
   index: number;
   total: number;
   albums: Album[];
+  counts: Record<string, number>;
   moving: boolean;
   editingCaption: boolean;
   captionDraft: string;
@@ -1058,7 +1264,6 @@ function Viewer({
   onCancelEdit: () => void;
   onCaptionDraft: (value: string) => void;
   onSaveCaption: () => void;
-  onDelete: () => void;
 }) {
   const pdf = photo.dataUrl.startsWith("data:application/pdf");
   return (
@@ -1090,42 +1295,48 @@ function Viewer({
           </button>
         ) : null}
       </div>
+      {photo.caption ? <p className="px-4 text-center text-sm">{photo.caption}</p> : null}
       <p className="px-4 text-center text-sm text-stone-300">تم رفعها في {formatDay(photo.createdAt)}</p>
-      {photo.caption ? <p className="px-4 pb-2 text-center text-sm">{photo.caption}</p> : null}
       <div className="grid grid-cols-4 gap-2 px-4 py-4 text-center text-sm">
+        <button type="button" onClick={() => sharePhoto(photo)}>مشاركة</button>
         <button type="button" onClick={onMove}>نقل</button>
         <button type="button" onClick={onEdit}>تعديل</button>
         <a href={photo.dataUrl} download>تحميل</a>
-        <button type="button" className="text-rose-300" onClick={onDelete}>حذف</button>
       </div>
       {moving ? (
-        <div className="absolute inset-x-3 bottom-3 rounded-3xl bg-white p-4 text-stone-900">
-          <p className="mb-2 text-center font-black">انقل الصورة لألبوم</p>
-          {albums.length === 0 ? <p className="text-sm text-stone-500">مفيش ألبوم تاني.</p> : null}
-          <div className="space-y-2">
-            {albums.map((item) => (
-              <button key={item.id} type="button" className="card w-full text-center font-bold" onClick={() => onPickAlbum(item)}>
-                {item.name}
-              </button>
-            ))}
-          </div>
-          <button type="button" className="btn btn-secondary mt-2 w-full" onClick={onCloseMove}>
-            إلغاء
-          </button>
-        </div>
+        <MoveSheet
+          fromName={albumName}
+          targets={albums.map((item) => ({
+            id: item.id,
+            name: item.name,
+            count: counts[item.id] || 0,
+          }))}
+          onClose={onCloseMove}
+          onMove={(id) => {
+            const target = albums.find((item) => item.id === id);
+            if (target) onPickAlbum(target);
+          }}
+        />
       ) : null}
       {editingCaption ? (
         <div className="absolute inset-x-3 bottom-3 rounded-3xl bg-white p-4 text-stone-900">
-          <p className="mb-2 text-center font-black">تعديل الوصف</p>
+          <p className="mb-2 text-center font-black">تعديل التسمية</p>
           <input className="input" value={captionDraft} onChange={(e) => onCaptionDraft(e.target.value)} placeholder="أضف وصفًا للصورة..." />
           <div className="mt-2 grid grid-cols-2 gap-2">
-            <button type="button" className="btn btn-primary" onClick={onSaveCaption}>حفظ</button>
+            <button type="button" className="btn btn-primary" onClick={onSaveCaption}>حفظ التسمية</button>
             <button type="button" className="btn btn-secondary" onClick={onCancelEdit}>إلغاء</button>
           </div>
         </div>
       ) : null}
     </div>
   );
+}
+
+function sharePhoto(photo: Photo) {
+  const title = photo.caption || "صورة";
+  if (typeof navigator !== "undefined" && navigator.share) {
+    void navigator.share({ title, text: title }).catch(() => undefined);
+  }
 }
 
 function PhotoThumb({ photo }: { photo: Photo }) {

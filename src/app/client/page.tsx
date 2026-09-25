@@ -5,7 +5,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Ledger } from "@/components/Ledger";
 import { expensesByCategory, projectMoney, statusLabel, supervisionDueLabel } from "@/lib/logic";
-import { formatMoney } from "@/lib/money";
+import { formatDay, formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
 import type { Album, GalleryPhoto } from "@/lib/types";
 
@@ -161,9 +161,13 @@ function ClientAlbums({
   showPrivate: boolean;
 }) {
   const [albumId, setAlbumId] = useState("");
+  const [viewer, setViewer] = useState<{ title: string; photo: GalleryPhoto } | null>(null);
   const album = albums.find((item) => item.id === albumId);
   const visible = (photo: GalleryPhoto) => showPrivate || !photo.hiddenFromClient;
   const rows = photos.filter((photo) => photo.albumId === albumId && visible(photo));
+  const recent = photos
+    .filter((photo) => albums.some((item) => item.id === photo.albumId) && visible(photo))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   if (album) {
     return (
       <div className="mt-3 space-y-3">
@@ -172,6 +176,9 @@ function ClientAlbums({
             رجوع
           </button>
           <p className="min-w-0 flex-1 truncate text-center font-black">{album.name}</p>
+          <p className="text-xs text-stone-500">
+            {rows.length === 1 ? "صورة واحدة" : `${rows.length.toLocaleString("ar-EG")} صورة`}
+          </p>
         </div>
         {rows.length === 0 ? (
           <div className="card py-10 text-center">
@@ -180,7 +187,7 @@ function ClientAlbums({
         ) : (
           <div className="grid grid-cols-2 gap-2">
             {rows.map((photo) => (
-              <div key={photo.id} className="overflow-hidden rounded-2xl bg-white">
+              <button key={photo.id} type="button" className="overflow-hidden rounded-2xl bg-white text-right" onClick={() => setViewer({ title: album.name, photo })}>
                 {photo.dataUrl.startsWith("data:application/pdf") ? (
                   <span className="grid aspect-square place-items-center text-sm font-bold">PDF</span>
                 ) : (
@@ -188,40 +195,108 @@ function ClientAlbums({
                   <img src={photo.dataUrl} alt={photo.caption || album.name} className="aspect-square w-full object-cover" />
                 )}
                 {photo.caption ? <p className="truncate px-2 py-1 text-xs">{photo.caption}</p> : null}
-              </div>
+              </button>
             ))}
           </div>
         )}
+        {viewer ? <ClientViewer title={viewer.title} photo={viewer.photo} onClose={() => setViewer(null)} /> : null}
       </div>
     );
   }
   if (albums.length === 0) {
-    return <p className="card mt-3 text-stone-500">مفيش صور ظاهرة للعميل.</p>;
+    return (
+      <div className="card mt-3 py-10 text-center">
+        <p className="text-lg font-black">لا توجد صور بعد</p>
+        <p className="mx-auto mt-2 max-w-xs text-sm text-stone-500">لم يتم رفع أي صور لهذا المشروع حتى الآن. ستظهر الصور هنا فور إضافتها.</p>
+      </div>
+    );
   }
   return (
-    <div className="mt-3 grid grid-cols-2 gap-3">
-      {albums.map((item) => {
-        const albumPhotos = photos.filter((photo) => photo.albumId === item.id && visible(photo));
-        const cover = albumPhotos.find((photo) => photo.id === item.coverPhotoId) || albumPhotos[0];
-        return (
-          <button key={item.id} type="button" className="text-right" onClick={() => setAlbumId(item.id)}>
-            <div className="relative overflow-hidden rounded-2xl bg-emerald-50">
-              {cover && !cover.dataUrl.startsWith("data:application/pdf") ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={cover.dataUrl} alt="" className="aspect-square w-full object-cover" />
-              ) : (
-                <span className="grid aspect-square place-items-center text-3xl text-emerald-700/40">▦</span>
-              )}
-              <span className="absolute top-2 right-2 rounded-full bg-black/60 px-2 py-0.5 text-xs font-bold text-white">
-                {albumPhotos.length.toLocaleString("ar-EG")}
-              </span>
-            </div>
-            <p className="mt-2 truncate font-black">{item.name}</p>
-          </button>
-        );
-      })}
+    <div className="mt-3 space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        {albums.map((item) => {
+          const albumPhotos = photos.filter((photo) => photo.albumId === item.id && visible(photo));
+          const cover = albumPhotos.find((photo) => photo.id === item.coverPhotoId) || albumPhotos[0];
+          const latest = albumPhotos[0]?.createdAt;
+          const today = latest ? new Date(latest).toDateString() === new Date().toDateString() : false;
+          return (
+            <button key={item.id} type="button" className="overflow-hidden rounded-3xl bg-white text-right" onClick={() => setAlbumId(item.id)}>
+              <div className="relative bg-[#e7f2ea]">
+                {cover && !cover.dataUrl.startsWith("data:application/pdf") ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={cover.dataUrl} alt="" className="aspect-[4/3] w-full object-cover" />
+                ) : (
+                  <span className="grid aspect-[4/3] place-items-center text-3xl text-emerald-700/40">▦</span>
+                )}
+                <span className="absolute bottom-2 left-2 rounded-full bg-stone-800/80 px-2 py-0.5 text-xs font-bold text-white">
+                  {albumPhotos.length.toLocaleString("ar-EG")}
+                </span>
+              </div>
+              <div className="px-3 py-2">
+                <p className="truncate font-black">{item.name}</p>
+                <p className="text-xs text-stone-500">{latest ? `آخر تحديث: ${today ? "اليوم" : formatDay(latest)}` : "لا توجد صور"}</p>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      {recent.length > 0 ? (
+        <section>
+          <p className="mb-2 font-black">أحدث الصور</p>
+          <div className="grid grid-cols-2 gap-2">
+            {recent.map((photo) => (
+              <button key={photo.id} type="button" className="overflow-hidden rounded-2xl bg-white" onClick={() => setViewer({ title: "أحدث الصور", photo })}>
+                {photo.dataUrl.startsWith("data:application/pdf") ? (
+                  <span className="grid aspect-square place-items-center text-sm font-bold">PDF</span>
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={photo.dataUrl} alt={photo.caption || ""} className="aspect-square w-full object-cover" />
+                )}
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
+      {viewer ? <ClientViewer title={viewer.title} photo={viewer.photo} onClose={() => setViewer(null)} /> : null}
     </div>
   );
+}
+
+function ClientViewer({ title, photo, onClose }: { title: string; photo: GalleryPhoto; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[80] flex flex-col bg-black text-white">
+      <div className="flex items-center justify-between px-4 py-3">
+        <button type="button" onClick={onClose} aria-label="إغلاق">×</button>
+        <p className="truncate font-bold">{title}</p>
+        <span className="w-6" />
+      </div>
+      <div className="flex flex-1 items-center justify-center px-4">
+        {photo.dataUrl.startsWith("data:application/pdf") ? (
+          <span className="font-bold">PDF</span>
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={photo.dataUrl} alt={photo.caption || title} className="max-h-[70dvh] max-w-full object-contain" />
+        )}
+      </div>
+      {photo.caption ? <p className="px-4 text-center text-sm">{photo.caption}</p> : null}
+      <p className="px-4 text-center text-sm text-stone-300">تم رفعها في {formatDay(photo.createdAt)}</p>
+      <div className="grid grid-cols-2 gap-2 px-4 py-4">
+        <button type="button" className="btn btn-secondary" onClick={() => sharePhoto(photo)}>مشاركة</button>
+        <a className="btn btn-secondary text-center" href={photo.dataUrl} download>تحميل</a>
+      </div>
+    </div>
+  );
+}
+
+async function sharePhoto(photo: GalleryPhoto) {
+  const title = photo.caption || "صورة";
+  if (typeof navigator !== "undefined" && navigator.share) {
+    try {
+      await navigator.share({ title, text: title });
+    } catch {
+      /* ألغى المشاركة */
+    }
+  }
 }
 
 function PortalCard({
