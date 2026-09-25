@@ -125,7 +125,11 @@ function ClientInner() {
             />
           </div>
         ) : showGallery && tab === "photos" ? (
-          <ClientAlbums albums={sharedAlbums} photos={state.photos} />
+          <ClientAlbums
+            albums={sharedAlbums}
+            photos={state.photos}
+            showPrivate={project.showClientPrivatePhotos === true}
+          />
         ) : null}
       </div>
 
@@ -147,12 +151,19 @@ function ClientInner() {
   );
 }
 
-function ClientAlbums({ albums, photos }: { albums: Album[]; photos: GalleryPhoto[] }) {
+function ClientAlbums({
+  albums,
+  photos,
+  showPrivate,
+}: {
+  albums: Album[];
+  photos: GalleryPhoto[];
+  showPrivate: boolean;
+}) {
   const [albumId, setAlbumId] = useState("");
   const album = albums.find((item) => item.id === albumId);
-  const rows = photos.filter(
-    (photo) => photo.albumId === albumId && !photo.hiddenFromClient,
-  );
+  const visible = (photo: GalleryPhoto) => showPrivate || !photo.hiddenFromClient;
+  const rows = photos.filter((photo) => photo.albumId === albumId && visible(photo));
   if (album) {
     return (
       <div className="mt-3 space-y-3">
@@ -163,7 +174,9 @@ function ClientAlbums({ albums, photos }: { albums: Album[]; photos: GalleryPhot
           <p className="min-w-0 flex-1 truncate text-center font-black">{album.name}</p>
         </div>
         {rows.length === 0 ? (
-          <p className="card text-stone-500">مفيش صور ظاهرة في الألبوم ده.</p>
+          <div className="card py-10 text-center">
+            <p className="text-lg font-black">لا توجد صور في هذا الألبوم</p>
+          </div>
         ) : (
           <div className="grid grid-cols-2 gap-2">
             {rows.map((photo) => (
@@ -188,7 +201,7 @@ function ClientAlbums({ albums, photos }: { albums: Album[]; photos: GalleryPhot
   return (
     <div className="mt-3 grid grid-cols-2 gap-3">
       {albums.map((item) => {
-        const albumPhotos = photos.filter((photo) => photo.albumId === item.id && !photo.hiddenFromClient);
+        const albumPhotos = photos.filter((photo) => photo.albumId === item.id && visible(photo));
         const cover = albumPhotos.find((photo) => photo.id === item.coverPhotoId) || albumPhotos[0];
         return (
           <button key={item.id} type="button" className="text-right" onClick={() => setAlbumId(item.id)}>

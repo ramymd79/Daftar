@@ -448,7 +448,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setState((prev) => ({
           ...prev,
           albums: (prev.albums || []).filter((album) => album.id !== albumId),
-          photos: prev.photos.filter((photo) => photo.albumId !== albumId),
+          photos: prev.photos.map((photo) =>
+            photo.albumId === albumId ? { ...photo, albumId: undefined } : photo,
+          ),
         }));
       },
     }),

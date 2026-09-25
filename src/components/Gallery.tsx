@@ -45,7 +45,11 @@ export function Gallery({
   const [query, setQuery] = useState("");
   const [albumId, setAlbumId] = useState("");
   const [editor, setEditor] = useState<Album | "new" | null>(null);
-  const [menuId, setMenuId] = useState("");
+  const [sheetAlbumId, setSheetAlbumId] = useState("");
+  const [deleteAlbumId, setDeleteAlbumId] = useState("");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [sortKey, setSortKey] = useState<"newest" | "oldest" | "name" | "nameDesc" | "count" | "countAsc">("newest");
+  const [kindFilter, setKindFilter] = useState<"all" | "photos" | "video" | "shared">("all");
   const [uploadOpen, setUploadOpen] = useState(false);
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -116,6 +120,7 @@ export function Gallery({
     return (
       <AlbumForm
         album={editor === "new" ? undefined : editor}
+        photoCount={editor === "new" ? 0 : photos.filter((photo) => photo.albumId === editor.id).length}
         onCancel={() => setEditor(null)}
         onSave={(input) => {
           if (editor === "new") {
@@ -130,36 +135,50 @@ export function Gallery({
   }
 
   if (album) {
+    const deleting = albums.find((item) => item.id === deleteAlbumId);
     return (
       <div className="mt-3 space-y-3 pb-24">
-        <div className="flex items-center gap-2">
-          <button type="button" className="text-sm font-bold text-stone-500" onClick={() => setAlbumId("")}>
-            رجوع
+        <div className="grid grid-cols-[2.75rem_1fr_2.75rem_2.75rem] items-center gap-2">
+          <button
+            type="button"
+            className="grid h-11 w-11 place-items-center rounded-2xl border border-stone-200 bg-white"
+            aria-label="رجوع"
+            onClick={() => setAlbumId("")}
+          >
+            <span aria-hidden="true">→</span>
           </button>
-          <p className="min-w-0 flex-1 truncate text-center font-black">{album.name}</p>
-          <button type="button" className="text-sm font-bold" aria-label="تعديل الألبوم" onClick={() => setEditor(album)}>
-            ✎
+          <p className="min-w-0 truncate text-center font-black">{album.name}</p>
+          <button
+            type="button"
+            className="grid h-11 w-11 place-items-center rounded-2xl border border-stone-200 bg-white"
+            aria-label="تعديل الألبوم"
+            onClick={() => setEditor(album)}
+          >
+            <PencilIcon />
           </button>
-          {albumPhotos.length > 0 ? (
-            <button
-              type="button"
-              className="text-sm font-bold text-rose-700"
-              aria-label="حذف الألبوم"
-              onClick={() => {
-                if (!window.confirm("تحذف الألبوم وصوره؟")) return;
-                onDeleteAlbum(album.id);
-                setAlbumId("");
-              }}
-            >
-              حذف
-            </button>
-          ) : null}
+          <button
+            type="button"
+            className="grid h-11 w-11 place-items-center rounded-2xl bg-rose-50 text-rose-600"
+            aria-label="حذف الألبوم"
+            onClick={() => setDeleteAlbumId(album.id)}
+          >
+            <TrashIcon />
+          </button>
         </div>
 
         {albumPhotos.length === 0 ? (
-          <div className="card py-10 text-center">
-            <p className="text-lg font-black">لا توجد صور في هذا الألبوم</p>
-            <p className="mx-auto mt-2 max-w-xs text-sm text-stone-500">ارفع أول صورة لتوثيق تقدم العمل في هذا الألبوم.</p>
+          <div className="px-4 py-8 text-center">
+            <div className="relative mx-auto grid h-24 w-24 place-items-center rounded-3xl bg-[#f3e6df] text-[var(--brand)]">
+              <svg viewBox="0 0 24 24" className="h-10 w-10" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                <path d="M8 7.5 9.2 5.5h5.6L16 7.5" strokeLinecap="round" strokeLinejoin="round" />
+                <rect x="4" y="7.5" width="16" height="11" rx="2.5" />
+                <circle cx="12" cy="13" r="3" />
+              </svg>
+              <span className="absolute -top-1 -left-1 grid h-7 w-7 place-items-center rounded-full bg-[var(--fab)] text-lg font-black text-white">+</span>
+            </div>
+            <p className="mt-6 text-xl font-black">لا توجد صور في هذا الألبوم</p>
+            <p className="mx-auto mt-2 max-w-xs text-sm leading-6 text-stone-500">ارفع أول صورة لتوثيق تقدم العمل في هذا الألبوم.</p>
+            <p className="mt-4 text-sm text-stone-500">{(0).toLocaleString("ar-EG")} صورة</p>
             <button type="button" className="btn btn-primary mx-auto mt-4" onClick={() => setUploadOpen(true)}>
               رفع صور
             </button>
@@ -318,6 +337,17 @@ export function Gallery({
             }}
           />
         ) : null}
+        {deleting ? (
+          <AlbumDeleteDialog
+            name={deleting.name}
+            onCancel={() => setDeleteAlbumId("")}
+            onConfirm={() => {
+              onDeleteAlbum(deleting.id);
+              setDeleteAlbumId("");
+              setAlbumId("");
+            }}
+          />
+        ) : null}
       </div>
     );
   }
@@ -350,64 +380,90 @@ export function Gallery({
     );
   }
 
+  const loose = photos.filter((photo) => !photo.albumId);
+  const orderedAlbums = [...shownAlbums]
+    .filter((item) => {
+      const rows = photos.filter((photo) => photo.albumId === item.id);
+      if (kindFilter === "shared") return item.sharedWithClient;
+      if (kindFilter === "video") return rows.some((photo) => photo.dataUrl.startsWith("data:video"));
+      if (kindFilter === "photos") return rows.length > 0 && rows.every((photo) => !photo.dataUrl.startsWith("data:video"));
+      return true;
+    })
+    .sort((a, b) => {
+      const count = (id: string) => photos.filter((photo) => photo.albumId === id).length;
+      if (sortKey === "oldest") return a.createdAt.localeCompare(b.createdAt);
+      if (sortKey === "name") return a.name.localeCompare(b.name, "ar");
+      if (sortKey === "nameDesc") return b.name.localeCompare(a.name, "ar");
+      if (sortKey === "count") return count(b.id) - count(a.id);
+      if (sortKey === "countAsc") return count(a.id) - count(b.id);
+      return b.createdAt.localeCompare(a.createdAt);
+    });
+  const sheetAlbum = albums.find((item) => item.id === sheetAlbumId);
+  const deleting = albums.find((item) => item.id === deleteAlbumId);
+
   return (
     <div className="mt-3 space-y-3 pb-24">
-      <input
-        className="input"
-        placeholder="بحث في الألبومات والصور..."
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-      />
-      {shownAlbums.length === 0 ? (
+      <div className="flex items-center gap-2">
+        <button type="button" className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-stone-200 bg-white" aria-label="تصفية وفرز" onClick={() => setFilterOpen(true)}>
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+            <path d="M4 6h16M7 12h10M10 18h4" strokeLinecap="round" />
+          </svg>
+        </button>
+        <input
+          className="input"
+          placeholder="بحث في الألبومات والصور..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      </div>
+      {orderedAlbums.length === 0 ? (
         <p className="card text-sm text-stone-500">مفيش ألبوم بالاسم ده.</p>
       ) : (
         <div className="grid grid-cols-2 gap-3">
-          {shownAlbums.map((item) => {
+          {orderedAlbums.map((item) => {
             const rows = photos.filter((photo) => photo.albumId === item.id);
             const cover = rows.find((photo) => photo.id === item.coverPhotoId) || rows[0];
             return (
-              <div key={item.id} className="relative">
-                <button type="button" className="w-full text-right" onClick={() => setAlbumId(item.id)}>
-                  <div className="relative overflow-hidden rounded-2xl bg-emerald-50">
-                    {cover ? <PhotoThumb photo={cover} /> : <span className="grid aspect-square place-items-center text-3xl text-emerald-700/40">▦</span>}
-                    <span className="absolute top-2 right-2 rounded-full bg-black/60 px-2 py-0.5 text-xs font-bold text-white">
+              <div key={item.id} className="overflow-hidden rounded-3xl bg-white">
+                <button type="button" className="relative block w-full text-right" onClick={() => setAlbumId(item.id)}>
+                  <div className="relative bg-[#e7f2ea]">
+                    {cover ? <PhotoThumb photo={cover} /> : (
+                      <span className="grid aspect-[4/3] place-items-center text-[var(--brand)]">
+                        <ImageIcon />
+                      </span>
+                    )}
+                    <span className="absolute bottom-2 left-2 rounded-full bg-stone-800/80 px-2 py-0.5 text-xs font-bold text-white">
                       {rows.length.toLocaleString("ar-EG")}
                     </span>
                   </div>
-                  <p className="mt-2 truncate font-black">{item.name}</p>
-                  <p className="text-xs text-stone-500">{item.sharedWithClient ? "مشترك مع العميل" : "خاص"}</p>
                 </button>
-                <button
-                  type="button"
-                  className="absolute top-2 left-2 grid h-8 w-8 place-items-center rounded-full bg-white/90 text-lg font-black"
-                  aria-label="قائمة الألبوم"
-                  onClick={() => setMenuId(menuId === item.id ? "" : item.id)}
-                >
-                  …
-                </button>
-                {menuId === item.id ? (
-                  <div className="absolute top-12 left-2 z-10 w-32 rounded-2xl bg-white p-1 shadow-lg">
-                    <button type="button" className="block w-full rounded-xl px-3 py-2 text-right text-sm font-bold" onClick={() => { setMenuId(""); setEditor(item); }}>
-                      تعديل
-                    </button>
-                    <button
-                      type="button"
-                      className="block w-full rounded-xl px-3 py-2 text-right text-sm font-bold text-rose-700"
-                      onClick={() => {
-                        setMenuId("");
-                        if (!window.confirm("تحذف الألبوم وصوره؟")) return;
-                        onDeleteAlbum(item.id);
-                      }}
-                    >
-                      حذف
-                    </button>
-                  </div>
-                ) : null}
+                <div className="flex items-start gap-1 px-3 py-2">
+                  <button type="button" className="px-1 text-lg font-black leading-none text-stone-500" aria-label="خيارات الألبوم" onClick={() => setSheetAlbumId(item.id)}>
+                    …
+                  </button>
+                  <button type="button" className="min-w-0 flex-1 text-right" onClick={() => setAlbumId(item.id)}>
+                    <p className="truncate font-black">{item.name}</p>
+                    <p className="text-xs text-stone-500">{item.sharedWithClient ? "مشترك مع العميل" : "خاص"}</p>
+                  </button>
+                </div>
               </div>
             );
           })}
         </div>
       )}
+      {loose.length > 0 ? (
+        <section className="space-y-2">
+          <p className="font-black">كل الوسائط</p>
+          <p className="text-xs text-stone-500">لسه مش شغالة</p>
+          <div className="grid grid-cols-2 gap-2">
+            {loose.map((photo) => (
+              <div key={photo.id} className="overflow-hidden rounded-2xl bg-white">
+                <PhotoThumb photo={photo} />
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
       <button
         type="button"
         className="fixed bottom-20 left-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--fab)] text-3xl text-white shadow-lg"
@@ -416,16 +472,219 @@ export function Gallery({
       >
         +
       </button>
+      {sheetAlbum ? (
+        <AlbumOptionsSheet
+          album={sheetAlbum}
+          count={photos.filter((photo) => photo.albumId === sheetAlbum.id).length}
+          onClose={() => setSheetAlbumId("")}
+          onRename={() => {
+            setSheetAlbumId("");
+            setEditor(sheetAlbum);
+          }}
+          onShare={() => onUpdateAlbum(sheetAlbum.id, { sharedWithClient: !sheetAlbum.sharedWithClient })}
+          onDelete={() => {
+            setSheetAlbumId("");
+            setDeleteAlbumId(sheetAlbum.id);
+          }}
+        />
+      ) : null}
+      {deleting ? (
+        <AlbumDeleteDialog
+          name={deleting.name}
+          onCancel={() => setDeleteAlbumId("")}
+          onConfirm={() => {
+            onDeleteAlbum(deleting.id);
+            setDeleteAlbumId("");
+          }}
+        />
+      ) : null}
+      {filterOpen ? (
+        <FilterSheet
+          sortKey={sortKey}
+          kindFilter={kindFilter}
+          albumCount={albums.length}
+          onSort={setSortKey}
+          onKind={setKindFilter}
+          onReset={() => {
+            setSortKey("newest");
+            setKindFilter("all");
+          }}
+          onClose={() => setFilterOpen(false)}
+        />
+      ) : null}
     </div>
+  );
+}
+
+function AlbumOptionsSheet({
+  album,
+  count,
+  onClose,
+  onRename,
+  onShare,
+  onDelete,
+}: {
+  album: Album;
+  count: number;
+  onClose: () => void;
+  onRename: () => void;
+  onShare: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/40">
+      <button type="button" className="absolute inset-0" aria-label="إغلاق" onClick={onClose} />
+      <div className="relative max-h-[85dvh] w-full max-w-lg overflow-auto rounded-t-3xl bg-[var(--bg)] p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <span className="w-8" />
+          <div className="text-center">
+            <p className="font-black">خيارات الألبوم</p>
+            <p className="text-xs text-stone-500">بطاقة الألبوم في معرض المشروع</p>
+          </div>
+          <button type="button" className="grid h-8 w-8 place-items-center rounded-full border border-stone-200 bg-white" aria-label="إغلاق" onClick={onClose}>
+            ×
+          </button>
+        </div>
+        <div className="card mb-3 flex items-center justify-between">
+          <span className="grid h-12 w-12 place-items-center rounded-2xl bg-[#f3e6df] text-[var(--brand)]">
+            <ImageIcon />
+          </span>
+          <span className="text-right">
+            <span className="block font-black">{album.name}</span>
+            <span className="text-xs text-stone-500">
+              {album.sharedWithClient ? "مشترك مع العميل" : "خاص"}، {count.toLocaleString("ar-EG")} صورة
+            </span>
+          </span>
+        </div>
+        <div className="space-y-2">
+          <OptionRow title="إعادة التسمية" hint="غيّر اسم الألبوم أو إعداداته." onClick={onRename} />
+          {album.sharedWithClient ? (
+            <OptionRow title="إلغاء المشاركة مع العميل" hint="اجعل الألبوم خاصاً بفريق المشروع." onClick={onShare} />
+          ) : (
+            <OptionRow title="مشاركة مع العميل" hint="اجعل الألبوم مرئياً في بوابة العميل." onClick={onShare} />
+          )}
+          <button type="button" className="card w-full text-right" onClick={onDelete}>
+            <span className="block font-bold text-rose-700">حذف</span>
+            <span className="text-xs text-stone-500">احذف الألبوم من معرض المشروع.</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AlbumDeleteDialog({
+  name,
+  onCancel,
+  onConfirm,
+}: {
+  name: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[90] grid place-items-center bg-black/40 p-6">
+      <div className="w-full max-w-sm rounded-3xl bg-white p-4 text-center">
+        <p className="text-lg font-black">حذف الألبوم</p>
+        <p className="mt-2 text-sm text-stone-600">هل أنت متأكد من حذف ألبوم «{name}»؟</p>
+        <p className="mt-2 text-sm text-stone-600">سيتم نقل الوسائط إلى قسم كل الوسائط ولن يتم حذفها.</p>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button type="button" className="btn bg-rose-600 text-white" onClick={onConfirm}>حذف</button>
+          <button type="button" className="btn btn-secondary" onClick={onCancel}>إلغاء</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FilterSheet({
+  sortKey,
+  kindFilter,
+  albumCount,
+  onSort,
+  onKind,
+  onReset,
+  onClose,
+}: {
+  sortKey: "newest" | "oldest" | "name" | "nameDesc" | "count" | "countAsc";
+  kindFilter: "all" | "photos" | "video" | "shared";
+  albumCount: number;
+  onSort: (value: "newest" | "oldest" | "name" | "nameDesc" | "count" | "countAsc") => void;
+  onKind: (value: "all" | "photos" | "video" | "shared") => void;
+  onReset: () => void;
+  onClose: () => void;
+}) {
+  const sorts = [
+    ["newest", "التاريخ الأحدث"],
+    ["oldest", "التاريخ الأقدم"],
+    ["name", "اسم الألبوم أ-ي"],
+    ["nameDesc", "اسم الألبوم ي-أ"],
+    ["count", "عدد الصور الأكثر"],
+    ["countAsc", "عدد الصور الأقل"],
+  ] as const;
+  const kinds = [
+    ["photos", "صور"],
+    ["video", "فيديو"],
+    ["shared", "مشترك"],
+  ] as const;
+  return (
+    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/40">
+      <button type="button" className="absolute inset-0" aria-label="إغلاق" onClick={onClose} />
+      <div className="relative max-h-[85dvh] w-full max-w-lg overflow-auto rounded-t-3xl bg-[var(--bg)] p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <button type="button" className="text-sm font-bold text-[var(--brand)]" onClick={onReset}>إعادة تعيين</button>
+          <p className="font-black">تصفية وفرز</p>
+          <span className="w-16" />
+        </div>
+        <div className="space-y-2">
+          {sorts.map(([key, label]) => (
+            <label key={key} className="card flex items-center justify-between text-sm font-bold">
+              {label}
+              <input type="radio" name="album-sort" checked={sortKey === key} onChange={() => onSort(key)} />
+            </label>
+          ))}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {kinds.map(([key, label]) => (
+            <button key={key} type="button" className={`rounded-full px-3 py-1 text-sm font-bold ${kindFilter === key ? "bg-[var(--brand)] text-white" : "bg-white"}`} onClick={() => onKind(kindFilter === key ? "all" : key)}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="mt-3 text-sm font-bold">كل الألبومات ({albumCount.toLocaleString("ar-EG")})</p>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button type="button" className="btn btn-primary" onClick={onClose}>تطبيق الفلاتر</button>
+          <button type="button" className="btn btn-secondary" onClick={onClose}>إلغاء</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PencilIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <path d="M4 20h4l10-10-4-4L4 16v4z" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <path d="M5 7h14M9 7V5h6v2M8 7l1 12h6l1-12" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 
 function AlbumForm({
   album,
+  photoCount = 0,
   onCancel,
   onSave,
 }: {
   album?: Album;
+  photoCount?: number;
   onCancel: () => void;
   onSave: (input: { name: string; description?: string; sharedWithClient: boolean }) => void;
 }) {
@@ -454,6 +713,19 @@ function AlbumForm({
         <span />
       </div>
       <div className="mx-auto w-full max-w-lg flex-1 space-y-4 overflow-y-auto px-4">
+        {album ? (
+          <div className="card flex items-center justify-between">
+            <span className="grid h-12 w-12 place-items-center rounded-2xl bg-[#f3e6df] text-[var(--brand)]">
+              <ImageIcon />
+            </span>
+            <span className="text-right">
+              <span className="block font-black">{album.name}</span>
+              <span className="text-xs text-stone-500">
+                {shared ? "مشترك مع العميل" : "خاص"}، {photoCount.toLocaleString("ar-EG")} صورة
+              </span>
+            </span>
+          </div>
+        ) : null}
         <FieldLabel label="اسم الألبوم" hint="مطلوب" />
         <input
           className="input"
@@ -551,7 +823,7 @@ function UploadSheet({
   const total = queue.length;
   const pct = total === 0 ? 0 : Math.round((doneCount / total) * 100);
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-3">
+    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/40 p-3">
       <div className="max-h-[85dvh] w-full max-w-lg overflow-auto rounded-3xl bg-[var(--bg)] p-4">
         <div className="mb-1 flex items-center justify-between">
           <span className="w-6" />
