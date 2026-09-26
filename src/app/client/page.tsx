@@ -15,6 +15,7 @@ function ClientInner() {
   const projectId = params.get("id") || "";
   const project = state.projects.find((item) => item.id === projectId);
   const [tab, setTab] = useState<"finance" | "photos">("finance");
+  const [distOpen, setDistOpen] = useState(true);
 
   if (!project) {
     return (
@@ -94,11 +95,16 @@ function ClientInner() {
             ) : null}
 
             <section className="card">
-              <div className="mb-3 flex items-center justify-between">
+              <button type="button" className="mb-3 flex w-full items-center justify-between" onClick={() => setDistOpen((value) => !value)}>
                 <h2 className="font-black">توزيع المصروفات</h2>
-                <p className="font-black">{formatMoney(money.spent)}</p>
+                <p className="font-black">{money.spent === 0 ? "·" : formatMoney(money.spent)}</p>
+              </button>
+              <div className="mb-4 flex h-2.5 overflow-hidden rounded-full bg-stone-100">
+                {rows.map((row) => (
+                  <div key={row.category.id} className="h-full" style={{ width: `${row.pct}%`, background: "#8d5a3c" }} />
+                ))}
               </div>
-              <div className="space-y-3">
+              {distOpen ? <div className="space-y-3">
                 {rows.map((row) => (
                   <div key={row.category.id}>
                     <div className="mb-1 flex justify-between text-sm font-bold">
@@ -108,13 +114,13 @@ function ClientInner() {
                       </span>
                     </div>
                     <div className="grid grid-cols-3 text-center text-xs text-stone-600">
-                      <span>مشتريات {formatMoney(row.purchase)}</span>
-                      <span>نقل وتشوين {formatMoney(row.transport)}</span>
-                      <span>مقاولين {formatMoney(row.labor)}</span>
+                      <span>مشتريات {row.purchase === 0 ? "·" : formatMoney(row.purchase)}</span>
+                      <span>نقل وتشوين {row.transport === 0 ? "·" : formatMoney(row.transport)}</span>
+                      <span>مقاولين {row.labor === 0 ? "·" : formatMoney(row.labor)}</span>
                     </div>
                   </div>
                 ))}
-              </div>
+              </div> : null}
             </section>
 
             <Ledger
@@ -122,6 +128,7 @@ function ClientInner() {
               projectId={project.id}
               heading="سجل المدفوعات"
               allowNotes={project.showClientTxNotes === true}
+              readOnly
             />
           </div>
         ) : showGallery && tab === "photos" ? (

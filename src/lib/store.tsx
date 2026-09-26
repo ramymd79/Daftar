@@ -88,6 +88,7 @@ type StoreApi = {
     input: Omit<Transaction, "id" | "createdAt"> & { id?: string },
   ) => string;
   deleteTransaction: (id: string) => void;
+  updateTransaction: (id: string, patch: Partial<Omit<Transaction, "id" | "createdAt">>) => void;
   addCategory: (name: string) => string;
   renameCategory: (id: string, name: string) => void;
   deleteCategory: (id: string) => void;
@@ -345,6 +346,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setState((prev) => ({
           ...prev,
           transactions: prev.transactions.filter((tx) => tx.id !== id),
+        }));
+      },
+      updateTransaction: (id, patch) => {
+        setState((prev) => ({
+          ...prev,
+          transactions: prev.transactions.map((tx) => (tx.id === id ? { ...tx, ...patch, id: tx.id, createdAt: tx.createdAt } : tx)),
         }));
       },
       addCategory: (name) => {

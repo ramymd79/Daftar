@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   expensesByCategory,
   projectMoney,
@@ -19,25 +20,27 @@ export function FinanceBoard({
   const money = projectMoney(state, projectId);
   const rows = expensesByCategory(state, projectId);
   const budget = project?.contractTotal || 0;
+  const [open, setOpen] = useState(true);
+  const shown = (value: number) => (value === 0 ? "·" : formatMoney(value));
 
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2">
         <MoneyCard
           label="المستلم (شامل الإشراف)"
-          value={formatMoney(money.received)}
+          value={shown(money.received)}
           tone="green"
           hint={budget > 0 ? `من أصل ${formatMoney(budget)}` : undefined}
         />
         <MoneyCard
           label="المتبقي بعد المصروف والإشراف"
-          value={formatMoney(money.remaining)}
+          value={shown(money.remaining)}
           tone={money.remaining < 0 ? "rose" : "green"}
         />
-        <MoneyCard label="المصروف" value={formatMoney(money.spent)} />
+        <MoneyCard label="المصروف" value={shown(money.spent)} />
         <MoneyCard
           label={supervisionDueLabel(project)}
-          value={formatMoney(money.supervisionDue)}
+          value={shown(money.supervisionDue)}
           tone="rose"
         />
       </div>
@@ -49,10 +52,10 @@ export function FinanceBoard({
       ) : null}
 
       <section className="card">
-        <div className="mb-3 flex items-center justify-between">
+        <button type="button" className="mb-3 flex w-full items-center justify-between" onClick={() => setOpen((value) => !value)}>
           <h2 className="font-black">توزيع المصروفات</h2>
-          <p className="text-lg font-black">{formatMoney(money.spent)}</p>
-        </div>
+          <p className="text-lg font-black">{shown(money.spent)}</p>
+        </button>
         {rows.length === 0 ? (
           <p className="text-sm text-stone-500">لسه مفيش مصروفات.</p>
         ) : (
@@ -65,7 +68,7 @@ export function FinanceBoard({
                 />
               ))}
             </div>
-            <div className="space-y-3">
+            {open ? <div className="space-y-3">
               {rows.map((row) => (
                 <article key={row.category.id} className="overflow-hidden rounded-2xl border border-stone-100">
                   <div className="flex items-center justify-between gap-2 px-3 py-2">
@@ -88,7 +91,7 @@ export function FinanceBoard({
                   </div>
                 </article>
               ))}
-            </div>
+            </div> : null}
           </>
         )}
       </section>
@@ -122,7 +125,7 @@ function KindCell({ label, value }: { label: string; value: number }) {
   return (
     <div className="px-1 py-2">
       <p className="text-stone-500">{label}</p>
-      <p className="mt-1 font-bold">{value > 0 ? formatMoney(value) : "—"}</p>
+      <p className="mt-1 font-bold">{value === 0 ? "·" : formatMoney(value)}</p>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, Suspense, useRef, useState } from "react";
+import { FormEvent, Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { readCompressedImage } from "@/lib/images";
@@ -20,9 +20,10 @@ function nowInput() {
 function MoneyInner() {
   const params = useSearchParams();
   const router = useRouter();
-  const { state, addTransaction, addCategory, renameCategory, deleteCategory } = useStore();
+  const { state, addTransaction, updateTransaction, addCategory, renameCategory, deleteCategory } = useStore();
   const presetProject = params.get("projectId") || "";
   const kindParam = params.get("kind");
+  const txId = params.get("tx") || "";
   const lockedProject = Boolean(presetProject);
   const initialStep: Step =
     kindParam === "purchase" ? "expense" : kindParam === "payment" ? "payment" : "choose";
@@ -49,6 +50,26 @@ function MoneyInner() {
   const cameraRef = useRef<HTMLInputElement>(null);
 
   const project = state.projects.find((item) => item.id === projectId);
+  const existing = state.transactions.find((item) => item.id === txId);
+
+  useEffect(() => {
+    if (!existing) return;
+    setProjectId(existing.projectId);
+    setAmount(String(existing.amount));
+    setItem(existing.notes || "");
+    setPrivateNotes(existing.privateNotes || "");
+    setTransport(existing.transportAmount ? String(existing.transportAmount) : "");
+    setStorage(existing.storageAmount ? String(existing.storageAmount) : "");
+    setCategoryId(existing.categoryId || "");
+    setSupplierId(existing.supplierId || "");
+    setPaymentClass(existing.paymentClass || "expense");
+    setAttachment(existing.attachmentDataUrl);
+    const date = new Date(existing.date);
+    if (!Number.isNaN(date.getTime())) {
+      const pad = (value: number) => String(value).padStart(2, "0");
+      setBoughtAt(`${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`);
+    }
+  }, [existing]);
   const backHref = projectId
     ? `/project/?id=${encodeURIComponent(projectId)}&tab=finance`
     : "/projects/";
@@ -65,16 +86,18 @@ function MoneyInner() {
 
   function savePayment() {
     if (!projectId || Number(amount) <= 0) return;
-    addTransaction({
+    const payload = {
       projectId,
-      type: "client_payment",
+      type: "client_payment" as const,
       amount: Number(amount),
       date: dayToIso(boughtAt),
       notes: item.trim() || undefined,
       privateNotes: privateNotes.trim() || undefined,
       paymentClass,
       attachmentDataUrl: attachment,
-    });
+    };
+    if (txId) updateTransaction(txId, payload);
+    else addTransaction(payload);
     router.push(financeHref());
   }
 
@@ -90,9 +113,9 @@ function MoneyInner() {
     const transportAmount = Number(transport) || 0;
     const storageAmount = Number(storage) || 0;
     if (!projectId || !categoryId || materials <= 0) return;
-    addTransaction({
+    const payload = {
       projectId,
-      type: "expense",
+      type: "expense" as const,
       amount: materials,
       transportAmount,
       storageAmount,
@@ -100,10 +123,12 @@ function MoneyInner() {
       notes: item.trim() || undefined,
       privateNotes: privateNotes.trim() || undefined,
       categoryId,
-      expenseKind: "purchase",
+      expenseKind: "purchase" as const,
       attachmentDataUrl: attachment,
       supplierId: supplierId || undefined,
-    });
+    };
+    if (txId) updateTransaction(txId, payload);
+    else addTransaction(payload);
     setConfirmOpen(false);
     router.push(financeHref());
   }
@@ -510,7 +535,9 @@ function MoneyInner() {
             </button>
           </div>
           <p className="mt-2 text-xs text-stone-500">
-            {hasSupervision
+            {txId
+              ? "التصنيف ده بيتفعّل بس مع مشاريع الإشراف الثابت."
+              : hasSupervision
               ? "الاختيار بيتفعّل لما المشروع بنسبة إشراف أو بمبلغ إشراف ثابت، علشان تحدد لو الدفعة من المصروفات ولا من الإشراف. أي دفعة بتزوّد المستلم."
               : "الدفعة بتزوّد المستلم. تصنيف الإشراف بيتفعّل لما المشروع يبقى بنسبة أو بمبلغ إشراف."}
           </p>

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, Suspense, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { readCompressedImage } from "@/lib/images";
@@ -17,7 +17,8 @@ function nowInput() {
 function PaymentInner() {
   const params = useSearchParams();
   const router = useRouter();
-  const { state, addTransaction } = useStore();
+  const { state, addTransaction, updateTransaction } = useStore();
+  const txId = params.get("tx") || "";
   const presetProject = params.get("projectId") || state.projects[0]?.id || "";
   const [projectId, setProjectId] = useState(presetProject);
   const [contractorId, setContractorId] = useState(params.get("contractorId") || "");
@@ -31,6 +32,22 @@ function PaymentInner() {
   const lockedProject = Boolean(params.get("projectId"));
 
   const project = state.projects.find((item) => item.id === projectId);
+  const existing = state.transactions.find((item) => item.id === txId);
+
+  useEffect(() => {
+    if (!existing) return;
+    setProjectId(existing.projectId);
+    setContractorId(existing.contractorId || "");
+    setCategoryId(existing.categoryId || "");
+    setAmount(String(existing.amount));
+    setNotes(existing.notes || "");
+    setAttachment(existing.attachmentDataUrl);
+    const date = new Date(existing.date);
+    if (!Number.isNaN(date.getTime())) {
+      const pad = (value: number) => String(value).padStart(2, "0");
+      setPaidAt(`${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`);
+    }
+  }, [existing]);
   const backHref = projectId
     ? `/project/?id=${encodeURIComponent(projectId)}&tab=finance`
     : "/projects/";
@@ -70,17 +87,19 @@ function PaymentInner() {
   function commitPayment() {
     if (!projectId || !contractorId || !categoryId || Number(amount) <= 0) return;
     const category = state.categories.find((item) => item.id === categoryId);
-    addTransaction({
+    const payload = {
       projectId,
-      type: "expense",
-      expenseKind: "labor",
+      type: "expense" as const,
+      expenseKind: "labor" as const,
       contractorId,
       categoryId,
       amount: Number(amount),
       date: dayToIso(paidAt),
       notes: notes.trim() || category?.name || "مصنعية",
       attachmentDataUrl: attachment,
-    });
+    };
+    if (txId) updateTransaction(txId, payload);
+    else addTransaction(payload);
     setConfirmOpen(false);
     router.push(backHref);
   }
@@ -105,7 +124,7 @@ function PaymentInner() {
         <Link href={backHref} className="text-sm font-bold text-stone-500">
           رجوع
         </Link>
-        <h1 className="text-lg font-black">تسجيل مدفوعات مقاول</h1>
+        <h1 className="text-lg font-black">تسجيل مدفوعات لمقاول</h1>
         <span className="w-10" />
       </div>
       <p className="mb-4 text-sm text-stone-600">سجل مدفوعات لمقاول مسؤول عن أعمال في المشروع.</p>
@@ -154,7 +173,7 @@ function PaymentInner() {
           </select>
         </label>
 
-        <section className="card">
+        {contractorId ? <section className="card">
           <p className="mb-3 text-center text-sm font-bold">ملخص المدفوعات</p>
           <div className="grid grid-cols-3 text-center">
             <div>
@@ -175,7 +194,7 @@ function PaymentInner() {
           {contractorId && agreed === 0 ? (
             <p className="mt-3 text-center text-xs text-stone-500">لسه مفيش اتفاق متسجل مع المقاول ده.</p>
           ) : null}
-        </section>
+        </section> : null}
 
         <label className="block text-sm font-semibold">
           البند <span className="text-rose-600">مطلوب</span>
@@ -260,8 +279,11 @@ function PaymentInner() {
         </div>
 
         <button type="submit" className="btn btn-primary w-full" disabled={busy || !project}>
-          حفظ الدفعة
+          تسجيل المدفوعات
         </button>
+        <Link href={backHref} className="btn btn-secondary block text-center">
+          إلغاء
+        </Link>
       </form>
 
       {confirmOpen ? (
