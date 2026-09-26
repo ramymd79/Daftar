@@ -116,6 +116,52 @@ function contractorPaid(state: AppState, id: string) {
   return sumBy(expensesForPerson(state, "contractorId", id), (tx) => tx.amount);
 }
 
+function clientLinkInfo(state: AppState, clientId: string) {
+  const projects = state.projects.filter((project) => project.clientId === clientId);
+  const projectIds = new Set(projects.map((project) => project.id));
+  const payments = state.transactions.filter(
+    (tx) => tx.type === "client_payment" && projectIds.has(tx.projectId),
+  );
+  const unpaid = sumBy(projects, (project) => {
+    const received = sumBy(
+      payments.filter((tx) => tx.projectId === project.id),
+      (tx) => tx.amount,
+    );
+    return Math.max(0, (project.contractTotal || 0) - received);
+  });
+  return {
+    projects,
+    activeProjects: projects.filter((project) => project.status === "active"),
+    payments,
+    unpaid,
+    blocked: projects.length > 0 || payments.length > 0,
+  };
+}
+
+function supplierPurchases(state: AppState, supplierId: string) {
+  return expensesForPerson(state, "supplierId", supplierId);
+}
+
+async function pickContact(onPick: (name?: string, phone?: string) => void) {
+  const nav = navigator as Navigator & {
+    contacts?: {
+      select: (
+        props: string[],
+        opts: { multiple: boolean },
+      ) => Promise<Array<{ name?: string[]; tel?: string[] }>>;
+    };
+  };
+  if (!nav.contacts?.select) return;
+  try {
+    const picked = await nav.contacts.select(["name", "tel"], { multiple: false });
+    const first = picked[0];
+    if (!first) return;
+    onPick(first.name?.[0], first.tel?.[0]);
+  } catch {
+    return;
+  }
+}
+
 function contractorProjectRows(state: AppState, id: string) {
   const payments = expensesForPerson(state, "contractorId", id);
   const agreements = state.agreements.filter((item) => item.contractorId === id);
@@ -720,137 +766,78 @@ function PersonDetail({
   onBack: () => void;
   onSummary: () => void;
 }) {
-  const { state, updatePerson, deletePerson } = useStore();
+  const { state, deletePerson } = useStore();
   const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(person.name);
-  const [phone, setPhone] = useState(person.phone || "");
-  const [email, setEmail] = useState(person.email || "");
-  const [notes, setNotes] = useState(person.notes || "");
-  const [notice, setNotice] = useState("");
   const [blockOpen, setBlockOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const text = copy[kind];
   const showEmail = kind !== "contractors";
   const trades = kind === "clients" ? [] : personTrades(state, kind, person);
-  const linked = kind === "contractors" ? contractorProjectRows(state, person.id) : [];
-  const projects = state.projects.filter((project) => project.clientId === person.id);
+  const contractorLinked = kind === "contractors" ? contractorProjectRows(state, person.id) : [];
+  const clientLinks = kind === "clients" ? clientLinkInfo(state, person.id) : null;
+  const supplierBuys = kind === "suppliers" ? supplierPurchases(state, person.id) : [];
+  const clientActive = Boolean(clientLinks?.activeProjects.length);
   const over =
     kind === "clients" &&
-    projects.some((project) => {
-      const totals = projectTotals(state, project.id);
-      return totals.spent > totals.received;
-    });
+    Boolean(
+      clientLinks?.projects.some((project) => {
+        const totals = projectTotals(state, project.id);
+        return totals.spent > totals.received;
+      }),
+    );
   const wa = digitsOnly(person.phone || "");
 
-  useEffect(() => {
-    setName(person.name);
-    setPhone(person.phone || "");
-    setEmail(person.email || "");
-    setNotes(person.notes || "");
-  }, [person.name, person.phone, person.email, person.notes]);
-
-  function savePerson(event: FormEvent) {
-    event.preventDefault();
-    if (!name.trim()) {
-      setNotice("اكتب الاسم");
+  function onTrash() {
+    if (kind === "contractors") {
+      if (contractorLinked.length) setBlockOpen(true);
+      else setDeleteOpen(true);
       return;
     }
-    updatePerson(
-      kind,
-      person.id,
-      showEmail ? { name, phone, email, notes } : { name, phone, notes },
-    );
-    setNotice("");
-    setEditing(false);
+    if (kind === "clients") {
+      if (clientLinks?.blocked) setBlockOpen(true);
+      else setDeleteOpen(true);
+      return;
+    }
+    if (supplierBuys.length) setBlockOpen(true);
+    else setDeleteOpen(true);
   }
 
-  if (kind === "contractors" && editing) {
-    return <ContractorEdit person={person} onClose={() => setEditing(false)} />;
+  if (editing) {
+    if (kind === "contractors") return <ContractorEdit person={person} onClose={() => setEditing(false)} />;
+    if (kind === "clients") return <ClientEdit person={person} onClose={() => setEditing(false)} />;
+    return <SupplierEdit person={person} onClose={() => setEditing(false)} />;
   }
 
   return (
     <AppShell
       title={text.detail}
       action={
-        kind === "contractors" ? (
-          <div className="flex items-center gap-1">
-            <button type="button" aria-label="تعديل" className="rounded-xl p-2 text-stone-700" onClick={() => setEditing(true)}>
-              <PencilIcon />
-            </button>
-            <button
-              type="button"
-              aria-label="حذف"
-              className="rounded-xl p-2 text-rose-700"
-              onClick={() => {
-                if (linked.length) setBlockOpen(true);
-                else setDeleteOpen(true);
-              }}
-            >
-              <TrashIcon />
-            </button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <NotReady label="حذف" />
-            <button type="button" className="btn btn-secondary px-3 py-2 text-sm" onClick={() => setEditing(true)}>
-              تعديل
-            </button>
-          </div>
-        )
+        <div className="flex items-center gap-1">
+          <button type="button" aria-label="تعديل" className="rounded-xl p-2 text-stone-700" onClick={() => setEditing(true)}>
+            <PencilIcon />
+          </button>
+          <button type="button" aria-label="حذف" className="rounded-xl p-2 text-rose-700" onClick={onTrash}>
+            <TrashIcon />
+          </button>
+        </div>
       }
     >
       <button type="button" className="mb-3 text-sm text-stone-500" onClick={onBack}>
         رجوع
       </button>
       <p className="mb-3 text-sm text-stone-500">{person.name}</p>
-      {editing ? (
-        <form onSubmit={savePerson} className="card mb-3 space-y-3" noValidate>
-          <p className="font-bold">تعديل البيانات</p>
-          {notice ? <p className="text-sm font-bold text-rose-700">{notice}</p> : null}
-          <input className="input" value={name} onChange={(event) => setName(event.target.value)} />
-          <input
-            className="input"
-            placeholder="الموبايل (اختياري)"
-            value={phone}
-            onChange={(event) => setPhone(event.target.value)}
-            inputMode="tel"
-          />
-          {showEmail ? (
-            <input
-              className="input"
-              placeholder="البريد (اختياري)"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              inputMode="email"
-            />
-          ) : null}
-          <textarea
-            className="input min-h-24"
-            placeholder="ملاحظات (اختياري)"
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-          />
-          <button type="submit" className="btn btn-primary w-full">
-            حفظ
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary w-full"
-            onClick={() => {
-              setName(person.name);
-              setPhone(person.phone || "");
-              setEmail(person.email || "");
-              setNotes(person.notes || "");
-              setNotice("");
-              setEditing(false);
-            }}
-          >
-            إلغاء
-          </button>
-        </form>
-      ) : null}
       <div className="card mb-3 text-center">
         <p className="text-xl font-black">{person.name}</p>
+        {kind === "clients" ? (
+          <div className="mt-2 flex justify-center">
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${clientActive ? "bg-emerald-100 text-emerald-800" : "bg-stone-100 text-stone-500"}`}
+            >
+              <span className={`h-1.5 w-1.5 rounded-full ${clientActive ? "bg-emerald-600" : "bg-stone-400"}`} />
+              {clientActive ? "نشط" : "غير نشط"}
+            </span>
+          </div>
+        ) : null}
         {trades.length > 0 ? (
           <div className="mt-2 flex flex-wrap justify-center gap-1">
             {trades.map((trade) => (
@@ -858,11 +845,6 @@ function PersonDetail({
                 {trade}
               </span>
             ))}
-          </div>
-        ) : null}
-        {kind === "suppliers" ? (
-          <div className="mt-3 flex justify-center">
-            <NotReady label="تعديل التخصص" />
           </div>
         ) : null}
       </div>
@@ -882,9 +864,9 @@ function PersonDetail({
         <div>
           <p className="text-sm text-stone-500">الهاتف الأساسي</p>
           <p className="font-bold" dir="ltr">
-            {kind === "contractors" ? displayPhone(person.phone) || "لا يوجد هاتف" : person.phone || "لا يوجد هاتف"}
+            {displayPhone(person.phone) || "لا يوجد هاتف"}
           </p>
-          {kind === "contractors" && person.extraPhone ? (
+          {person.extraPhone ? (
             <p className="mt-1 text-sm text-stone-500" dir="ltr">
               {displayPhone(person.extraPhone)}
             </p>
@@ -938,16 +920,15 @@ function PersonDetail({
         ) : (
           <p className="text-sm text-stone-500">لا يوجد مرفقات</p>
         )}
-        {kind === "contractors" ? null : <NotReady label="إضافة مرفق" />}
       </div>
-      {blockOpen ? (
+      {blockOpen && kind === "contractors" ? (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-sm space-y-3 rounded-3xl bg-white p-4">
             <p className="text-lg font-black">لا يمكن حذف المقاول</p>
             <p className="text-sm leading-7 text-stone-600">
               لا يمكن حذف مقاول مرتبط بأي مشروع. يبقى المقاول ظاهرًا ويمكن مراجعة المشاريع المرتبطة.
             </p>
-            {linked.map((row) => (
+            {contractorLinked.map((row) => (
               <div key={row.project.id} className="rounded-2xl border border-stone-200 p-3 text-sm">
                 <p className="font-bold">
                   {row.project.name} – {row.project.status === "active" ? "مشروع نشط" : statusLabel(row.project.status)}
@@ -963,22 +944,63 @@ function PersonDetail({
           </div>
         </div>
       ) : null}
+      {blockOpen && kind === "clients" && clientLinks ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm space-y-3 rounded-3xl bg-white p-4 text-center">
+            <p className="text-lg font-black">لا يمكن حذف العميل</p>
+            <p className="text-sm leading-7 text-stone-600">
+              لا يمكن حذف هذا العميل لوجود بيانات مرتبطة. قم بحل هذه الارتباطات أولاً:
+            </p>
+            <div className="space-y-2 rounded-2xl bg-[#f3e6dc] px-3 py-3 text-right text-sm">
+              {clientLinks.activeProjects.map((project) => (
+                <p key={project.id} className="font-bold">
+                  مشروع نشط: {project.name}
+                </p>
+              ))}
+              {clientLinks.unpaid > 0 ? (
+                <p className="font-bold">مستحقات غير مسددة: {formatMoney(clientLinks.unpaid)}</p>
+              ) : null}
+              {clientLinks.payments.length > 0 ? <p className="font-bold">مدفوعات مسجّلة باسم العميل</p> : null}
+            </div>
+            <button type="button" className="btn btn-primary w-full" onClick={() => setBlockOpen(false)}>
+              فهمت
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {blockOpen && kind === "suppliers" ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm space-y-3 rounded-3xl bg-white p-4 text-center">
+            <p className="text-lg font-black">لا يمكن حذف المورد</p>
+            <p className="text-sm leading-7 text-stone-600">لا يمكن حذف هذا المورد لوجود مشتريات مرتبطة به.</p>
+            <button type="button" className="btn btn-primary w-full" onClick={() => setBlockOpen(false)}>
+              فهمت
+            </button>
+          </div>
+        </div>
+      ) : null}
       {deleteOpen ? (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-sm space-y-3 rounded-3xl bg-white p-4 text-center">
             <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-rose-100 text-rose-700">
               <TrashIcon />
             </div>
-            <p className="text-lg font-black">حذف المقاول؟</p>
+            <p className="text-lg font-black">
+              {kind === "contractors" ? "حذف المقاول؟" : kind === "clients" ? "حذف العميل؟" : "حذف المورد؟"}
+            </p>
             <p className="text-sm leading-7 text-stone-600">
-              سيتم حذف &apos;{person.name}&apos; من دليل الشركة. لا توجد مشاريع مرتبطة بهذا المقاول حاليًا.
+              {kind === "contractors"
+                ? `سيتم حذف '${person.name}' من دليل الشركة. لا توجد مشاريع مرتبطة بهذا المقاول حاليًا.`
+                : kind === "clients"
+                  ? `سيتم حذف '${person.name}' من دليل الشركة. لا توجد بيانات مرتبطة بهذا العميل حاليًا.`
+                  : `سيتم حذف '${person.name}' من دليل الشركة. لا توجد مشتريات مرتبطة بهذا المورد حاليًا.`}
             </p>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 className="btn bg-rose-700 text-white"
                 onClick={() => {
-                  deletePerson("contractors", person.id);
+                  deletePerson(kind, person.id);
                   setDeleteOpen(false);
                   onBack();
                 }}
@@ -1180,6 +1202,345 @@ function ContractorEdit({ person, onClose }: { person: Person; onClose: () => vo
         </div>
         <button type="submit" className="btn btn-primary w-full">
           حفظ التعديلات
+        </button>
+        <button type="button" className="btn btn-secondary w-full" onClick={onClose}>
+          إلغاء
+        </button>
+      </form>
+    </AppShell>
+  );
+}
+
+function ClientEdit({ person, onClose }: { person: Person; onClose: () => void }) {
+  const { updatePerson } = useStore();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [name, setName] = useState(person.name);
+  const [phone, setPhone] = useState(localPhone(person.phone));
+  const [extraOpen, setExtraOpen] = useState(Boolean(person.extraPhone));
+  const [extraPhone, setExtraPhone] = useState(localPhone(person.extraPhone));
+  const [email, setEmail] = useState(person.email || "");
+  const [notes, setNotes] = useState(person.notes || "");
+  const [attachment, setAttachment] = useState(person.attachmentDataUrl || "");
+  const [notice, setNotice] = useState("");
+
+  function save(event: FormEvent) {
+    event.preventDefault();
+    if (!name.trim()) {
+      setNotice("اكتب الاسم الكامل");
+      return;
+    }
+    if (!digitsOnly(phone)) {
+      setNotice("اكتب رقم الهاتف");
+      return;
+    }
+    updatePerson("clients", person.id, {
+      name,
+      phone: `+20 ${digitsOnly(phone)}`,
+      extraPhone: extraOpen && digitsOnly(extraPhone) ? `+20 ${digitsOnly(extraPhone)}` : "",
+      email,
+      notes,
+      attachmentDataUrl: attachment,
+    });
+    onClose();
+  }
+
+  return (
+    <AppShell title="تعديل العميل">
+      <p className="mb-3 text-sm text-stone-500">{person.name}</p>
+      <form onSubmit={save} className="space-y-3" noValidate>
+        {notice ? <p className="text-sm font-bold text-rose-700">{notice}</p> : null}
+        <button
+          type="button"
+          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-[var(--brand)] bg-white px-3 py-3 text-sm font-bold text-[var(--brand)]"
+          onClick={() => void pickContact((pickedName, pickedPhone) => {
+            if (pickedName) setName(pickedName);
+            if (pickedPhone) setPhone(localPhone(pickedPhone));
+          })}
+        >
+          استيراد من جهات الاتصال
+        </button>
+        <label className="block space-y-1">
+          <span className="flex items-center justify-between text-sm font-bold">
+            <span>الاسم الكامل</span>
+            <span className="font-normal text-stone-400">مطلوب</span>
+          </span>
+          <input className="input" value={name} onChange={(event) => setName(event.target.value)} />
+        </label>
+        <div className="space-y-1">
+          <span className="flex items-center justify-between text-sm font-bold">
+            <span>رقم الهاتف</span>
+            <span className="font-normal text-stone-400">مطلوب</span>
+          </span>
+          <div className="flex items-center gap-2">
+            <span className="shrink-0 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-bold">مصر +20</span>
+            <input
+              className="input min-w-0 flex-1"
+              dir="ltr"
+              inputMode="tel"
+              value={phone}
+              onChange={(event) => setPhone(digitsOnly(event.target.value))}
+            />
+          </div>
+        </div>
+        {extraOpen ? (
+          <div className="flex items-center gap-2">
+            <span className="shrink-0 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-bold">مصر +20</span>
+            <input
+              className="input min-w-0 flex-1"
+              dir="ltr"
+              inputMode="tel"
+              aria-label="رقم هاتف آخر"
+              value={extraPhone}
+              onChange={(event) => setExtraPhone(digitsOnly(event.target.value))}
+            />
+          </div>
+        ) : (
+          <button type="button" className="text-sm font-bold text-[var(--brand)]" onClick={() => setExtraOpen(true)}>
+            + إضافة رقم هاتف آخر
+          </button>
+        )}
+        <label className="block space-y-1">
+          <span className="flex items-center justify-between text-sm font-bold">
+            <span>البريد الإلكتروني (لازم لدعوته لبوابة العميل)</span>
+            <span className="font-normal text-stone-400">اختياري</span>
+          </span>
+          <input
+            className="input"
+            dir="ltr"
+            inputMode="email"
+            placeholder="client@example.com"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+          />
+        </label>
+        <label className="block space-y-1">
+          <span className="flex items-center justify-between text-sm font-bold">
+            <span>ملاحظات</span>
+            <span className="font-normal text-stone-400">اختياري</span>
+          </span>
+          <textarea
+            className="input min-h-24"
+            placeholder="أي تفاصيل إضافية عن العميل..."
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+          />
+        </label>
+        <div className="space-y-2">
+          <span className="flex items-center justify-between text-sm font-bold">
+            <span>مرفقات</span>
+            <span className="font-normal text-stone-400">اختياري</span>
+          </span>
+          <button type="button" className="card w-full text-sm text-stone-500" onClick={() => fileRef.current?.click()}>
+            اضغط لالتقاط أو رفع ملف
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*,.pdf,application/pdf"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              const reader = new FileReader();
+              reader.onload = () => setAttachment(String(reader.result || ""));
+              reader.readAsDataURL(file);
+            }}
+          />
+          {attachment.startsWith("data:image") ? <img src={attachment} alt="" className="max-h-40 rounded-xl" /> : null}
+        </div>
+        <button type="submit" className="btn btn-primary w-full">
+          حفظ التعديلات
+        </button>
+        <button type="button" className="btn btn-secondary w-full" onClick={onClose}>
+          إلغاء
+        </button>
+      </form>
+    </AppShell>
+  );
+}
+
+function SupplierEdit({ person, onClose }: { person: Person; onClose: () => void }) {
+  const { state, updatePerson } = useStore();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const initialTrades = person.specialties?.length ? person.specialties : personTrades(state, "suppliers", person);
+  const [name, setName] = useState(person.name);
+  const [phone, setPhone] = useState(localPhone(person.phone));
+  const [extraOpen, setExtraOpen] = useState(Boolean(person.extraPhone));
+  const [extraPhone, setExtraPhone] = useState(localPhone(person.extraPhone));
+  const [email, setEmail] = useState(person.email || "");
+  const [specialties, setSpecialties] = useState<string[]>(initialTrades);
+  const [notes, setNotes] = useState(person.notes || "");
+  const [attachment, setAttachment] = useState(person.attachmentDataUrl || "");
+  const [notice, setNotice] = useState("");
+  const available = state.categories.map((item) => item.name).filter((item) => !specialties.includes(item));
+
+  function save(event: FormEvent) {
+    event.preventDefault();
+    if (!name.trim()) {
+      setNotice("اكتب اسم المورد");
+      return;
+    }
+    if (!digitsOnly(phone)) {
+      setNotice("اكتب الهاتف");
+      return;
+    }
+    updatePerson("suppliers", person.id, {
+      name,
+      phone: `+20 ${digitsOnly(phone)}`,
+      extraPhone: extraOpen && digitsOnly(extraPhone) ? `+20 ${digitsOnly(extraPhone)}` : "",
+      email,
+      notes,
+      specialties,
+      attachmentDataUrl: attachment,
+    });
+    onClose();
+  }
+
+  return (
+    <AppShell title="تعديل المورد">
+      <p className="mb-3 text-sm text-stone-500">{person.name}</p>
+      <form onSubmit={save} className="space-y-3" noValidate>
+        {notice ? <p className="text-sm font-bold text-rose-700">{notice}</p> : null}
+        <button
+          type="button"
+          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-[var(--brand)] bg-white px-3 py-3 text-sm font-bold text-[var(--brand)]"
+          onClick={() => void pickContact((pickedName, pickedPhone) => {
+            if (pickedName) setName(pickedName);
+            if (pickedPhone) setPhone(localPhone(pickedPhone));
+          })}
+        >
+          استيراد من جهات الاتصال
+        </button>
+        <label className="block space-y-1">
+          <span className="flex items-center justify-between text-sm font-bold">
+            <span>اسم المورد</span>
+            <span className="font-normal text-stone-400">مطلوب</span>
+          </span>
+          <input className="input" value={name} onChange={(event) => setName(event.target.value)} />
+        </label>
+        <div className="space-y-1">
+          <span className="flex items-center justify-between text-sm font-bold">
+            <span>الهاتف الأساسي</span>
+            <span className="font-normal text-stone-400">مطلوب</span>
+          </span>
+          <div className="flex items-center gap-2">
+            <span className="shrink-0 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-bold">مصر +20</span>
+            <input
+              className="input min-w-0 flex-1"
+              dir="ltr"
+              inputMode="tel"
+              value={phone}
+              onChange={(event) => setPhone(digitsOnly(event.target.value))}
+            />
+          </div>
+        </div>
+        {extraOpen ? (
+          <div className="flex items-center gap-2">
+            <span className="shrink-0 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-bold">مصر +20</span>
+            <input
+              className="input min-w-0 flex-1"
+              dir="ltr"
+              inputMode="tel"
+              aria-label="هاتف إضافي"
+              value={extraPhone}
+              onChange={(event) => setExtraPhone(digitsOnly(event.target.value))}
+            />
+          </div>
+        ) : (
+          <button type="button" className="text-sm font-bold text-[var(--brand)]" onClick={() => setExtraOpen(true)}>
+            إضافة هاتف +
+          </button>
+        )}
+        <label className="block space-y-1">
+          <span className="flex items-center justify-between text-sm font-bold">
+            <span>البريد الإلكتروني</span>
+            <span className="font-normal text-stone-400">اختياري</span>
+          </span>
+          <input
+            className="input"
+            dir="ltr"
+            inputMode="email"
+            placeholder="name@company.com"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+          />
+        </label>
+        <div className="space-y-2">
+          <span className="flex items-center justify-between text-sm font-bold">
+            <span>البنود التي يوردها</span>
+            <span className="font-normal text-stone-400">اختياري</span>
+          </span>
+          {available.length > 0 ? (
+            <select
+              className="input"
+              value=""
+              aria-label="البنود التي يوردها"
+              onChange={(event) => {
+                const value = event.target.value;
+                if (!value || specialties.includes(value)) return;
+                setSpecialties((prev) => [...prev, value]);
+              }}
+            >
+              <option value="">اختر البنود...</option>
+              {available.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          ) : null}
+          {specialties.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {specialties.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className="rounded-full bg-stone-100 px-3 py-1 text-sm font-bold"
+                  onClick={() => setSpecialties((prev) => prev.filter((entry) => entry !== item))}
+                >
+                  {item} ×
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+        <label className="block space-y-1">
+          <span className="flex items-center justify-between text-sm font-bold">
+            <span>ملاحظات</span>
+            <span className="font-normal text-stone-400">اختياري</span>
+          </span>
+          <textarea
+            className="input min-h-24"
+            placeholder="أي تفاصيل إضافية عن المورد..."
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+          />
+        </label>
+        <div className="space-y-2">
+          <span className="flex items-center justify-between text-sm font-bold">
+            <span>مرفقات</span>
+            <span className="font-normal text-stone-400">اختياري</span>
+          </span>
+          <button type="button" className="card w-full text-sm text-stone-500" onClick={() => fileRef.current?.click()}>
+            اضغط لالتقاط أو رفع ملف
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*,.pdf,application/pdf"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              const reader = new FileReader();
+              reader.onload = () => setAttachment(String(reader.result || ""));
+              reader.readAsDataURL(file);
+            }}
+          />
+          {attachment.startsWith("data:image") ? <img src={attachment} alt="" className="max-h-40 rounded-xl" /> : null}
+        </div>
+        <button type="submit" className="btn btn-primary w-full">
+          حفظ التغييرات
         </button>
         <button type="button" className="btn btn-secondary w-full" onClick={onClose}>
           إلغاء
