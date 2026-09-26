@@ -430,7 +430,7 @@ function ProjectSettingsForm({
   onDelete,
 }: {
   project: Project;
-  clients: { id: string; name: string }[];
+  clients: { id: string; name: string; email?: string }[];
   onSave: (
     id: string,
     patch: {
@@ -445,13 +445,18 @@ function ProjectSettingsForm({
       showClientPortal?: boolean;
       showClientMoney?: boolean;
       showClientGallery?: boolean;
+      showClientPrivatePhotos?: boolean;
       showClientTxNotes?: boolean;
     },
   ) => void;
   onDelete: (id: string) => void;
 }) {
   const router = useRouter();
+  const { updatePerson } = useStore();
   const [editing, setEditing] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [clientEmail, setClientEmail] = useState("");
   const [name, setName] = useState(project.name);
   const [address, setAddress] = useState(project.address || "");
   const [clientId, setClientId] = useState(project.clientId);
@@ -469,10 +474,13 @@ function ProjectSettingsForm({
   const [showClientPortal, setShowClientPortal] = useState(project.showClientPortal !== false);
   const [showClientMoney, setShowClientMoney] = useState(project.showClientMoney !== false);
   const [showClientGallery, setShowClientGallery] = useState(project.showClientGallery !== false);
+  const [showClientPrivatePhotos, setShowClientPrivatePhotos] = useState(project.showClientPrivatePhotos === true);
   const [showClientTxNotes, setShowClientTxNotes] = useState(project.showClientTxNotes === true);
   const [saved, setSaved] = useState(false);
   const [notice, setNotice] = useState("");
-  const clientName = clients.find((client) => client.id === clientId)?.name || (clientId ? "عميل" : "بدون عميل");
+  const client = clients.find((item) => item.id === clientId);
+  const clientName = client?.name || (clientId ? "عميل" : "بدون عميل");
+  const clientHasEmail = Boolean(client?.email?.trim());
 
   useEffect(() => {
     if (editing) return;
@@ -493,6 +501,7 @@ function ProjectSettingsForm({
     setShowClientPortal(project.showClientPortal !== false);
     setShowClientMoney(project.showClientMoney !== false);
     setShowClientGallery(project.showClientGallery !== false);
+    setShowClientPrivatePhotos(project.showClientPrivatePhotos === true);
     setShowClientTxNotes(project.showClientTxNotes === true);
   }, [project, editing]);
 
@@ -500,6 +509,7 @@ function ProjectSettingsForm({
     showClientPortal?: boolean;
     showClientMoney?: boolean;
     showClientGallery?: boolean;
+    showClientPrivatePhotos?: boolean;
     showClientTxNotes?: boolean;
   }) {
     onSave(project.id, patch);
@@ -519,11 +529,7 @@ function ProjectSettingsForm({
         <button
           type="button"
           className="card flex w-full items-center justify-between text-right text-rose-700"
-          onClick={() => {
-            if (!window.confirm("تحذف المشروع؟ لا يمكن التراجع.")) return;
-            onDelete(project.id);
-            router.push("/projects/");
-          }}
+          onClick={() => setDeleteOpen(true)}
         >
           <span>
             <span className="block font-black">حذف المشروع</span>
@@ -537,7 +543,9 @@ function ProjectSettingsForm({
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="font-black">بوابة العميل</p>
-            <p className="text-sm font-semibold">مقفلة لـ {clientName}</p>
+            <p className="text-sm font-semibold">
+              {showClientPortal ? `مفعّلة لـ ${clientName}` : `مقفلة لـ ${clientName}`}
+            </p>
           </div>
           <button
             type="button"
@@ -559,41 +567,93 @@ function ProjectSettingsForm({
         {showClientPortal ? (
           <div className="space-y-2 border-t border-stone-100 pt-3">
             <p className="text-sm font-bold">صلاحيات العرض</p>
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                className="mt-1"
-                checked={showClientMoney}
-                onChange={(e) => {
-                  setShowClientMoney(e.target.checked);
-                  savePortal({ showClientMoney: e.target.checked });
-                }}
-              />
-              <span className="font-semibold">المالية</span>
-            </label>
-            <label className="ms-6 flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={showClientTxNotes}
-                onChange={(e) => {
-                  setShowClientTxNotes(e.target.checked);
-                  savePortal({ showClientTxNotes: e.target.checked });
-                }}
-              />
-              عرض الملاحظات على المعاملات
-            </label>
-            <label className="flex items-center gap-2 text-sm font-semibold">
-              <input
-                type="checkbox"
-                checked={showClientGallery}
-                onChange={(e) => {
-                  setShowClientGallery(e.target.checked);
-                  savePortal({ showClientGallery: e.target.checked });
-                }}
-              />
-              المعرض
-            </label>
+            <button
+              type="button"
+              className={`flex w-full items-center justify-between rounded-2xl border px-3 py-3 text-right ${
+                showClientMoney ? "border-[var(--brand)] bg-[#f3e6dc]" : "border-stone-200 bg-white"
+              }`}
+              onClick={() => {
+                const next = !showClientMoney;
+                setShowClientMoney(next);
+                savePortal({ showClientMoney: next });
+              }}
+            >
+              <span className="font-bold">المالية</span>
+              <span
+                className={`grid h-5 w-5 place-items-center rounded-full border text-[10px] text-white ${
+                  showClientMoney ? "border-[var(--brand)] bg-[var(--brand)]" : "border-stone-300"
+                }`}
+              >
+                {showClientMoney ? "✓" : ""}
+              </span>
+            </button>
+            {showClientMoney ? (
+              <label className="ms-2 flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={showClientTxNotes}
+                  onChange={(e) => {
+                    setShowClientTxNotes(e.target.checked);
+                    savePortal({ showClientTxNotes: e.target.checked });
+                  }}
+                />
+                عرض الملاحظات على المعاملات
+              </label>
+            ) : null}
+            <button
+              type="button"
+              className={`flex w-full items-center justify-between rounded-2xl border px-3 py-3 text-right ${
+                showClientGallery ? "border-[var(--brand)] bg-[#f3e6dc]" : "border-stone-200 bg-white"
+              }`}
+              onClick={() => {
+                const next = !showClientGallery;
+                setShowClientGallery(next);
+                savePortal({ showClientGallery: next });
+              }}
+            >
+              <span className="font-bold">المعرض</span>
+              <span
+                className={`grid h-5 w-5 place-items-center rounded-full border text-[10px] text-white ${
+                  showClientGallery ? "border-[var(--brand)] bg-[var(--brand)]" : "border-stone-300"
+                }`}
+              >
+                {showClientGallery ? "✓" : ""}
+              </span>
+            </button>
+            {showClientGallery ? (
+              <label className="ms-2 flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={showClientPrivatePhotos}
+                  onChange={(e) => {
+                    setShowClientPrivatePhotos(e.target.checked);
+                    savePortal({ showClientPrivatePhotos: e.target.checked });
+                  }}
+                />
+                عرض الصور الخاصة
+              </label>
+            ) : null}
           </div>
+        ) : null}
+        <Link href={`/client/?id=${encodeURIComponent(project.id)}`} className="card flex items-center justify-between">
+          <span>
+            <span className="block font-black text-[var(--brand-dark)]">عرض كعميل</span>
+            <span className="text-xs text-stone-500">معاينة المشروع كما يراه العميل — للقراءة فقط</span>
+          </span>
+          <span aria-hidden="true">◉</span>
+        </Link>
+        {showClientPortal && clientId && !clientHasEmail ? (
+          <button
+            type="button"
+            className="card w-full text-right"
+            onClick={() => {
+              setClientEmail("");
+              setEmailOpen(true);
+            }}
+          >
+            <span className="block font-black">أضف بريد العميل</span>
+            <span className="mt-1 block text-sm text-stone-500">الدعوة تحتاج بريدًا – لا يملك العميل واحدًا</span>
+          </button>
         ) : null}
         <button
           type="button"
@@ -604,30 +664,62 @@ function ProjectSettingsForm({
           <span className="block font-black text-stone-500">إرسال دعوة للعميل على إميله</span>
           <span className="mt-1 block text-xs font-normal text-stone-500">لسه مش شغالة</span>
         </button>
-        <Link href={`/client/?id=${encodeURIComponent(project.id)}`} className="card flex items-center justify-between">
-          <span>
-            <span className="block font-black text-[var(--brand-dark)]">عرض كعميل</span>
-            <span className="text-xs text-stone-500">معاينة المشروع كما يراه العميل — للقراءة فقط</span>
-          </span>
-          <span aria-hidden="true">◉</span>
-        </Link>
-        {showClientPortal ? (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-3">
-            <p className="font-black text-emerald-800">الوصول نشط</p>
-            <p className="text-sm text-emerald-900">يرى العميل المشروع من بوابة العميل</p>
+      </section>
+      {emailOpen && clientId ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm space-y-3 rounded-3xl bg-white p-4">
+            <p className="font-black">أضف بريد العميل</p>
+            <p className="text-sm text-stone-600">الدعوة تحتاج بريدًا – لا يملك العميل واحدًا</p>
+            <input
+              className="input"
+              dir="ltr"
+              inputMode="email"
+              placeholder="client@example.com"
+              value={clientEmail}
+              onChange={(event) => setClientEmail(event.target.value)}
+            />
             <button
               type="button"
-              className="btn mt-2 border border-rose-200 bg-white text-rose-700"
+              className="btn btn-primary w-full"
               onClick={() => {
-                setShowClientPortal(false);
-                savePortal({ showClientPortal: false });
+                if (!clientEmail.trim() || !client) return;
+                updatePerson("clients", clientId, {
+                  name: client.name,
+                  email: clientEmail.trim(),
+                });
+                setEmailOpen(false);
               }}
             >
-              إيقاف الصلاحية
+              حفظ البريد
+            </button>
+            <button type="button" className="btn btn-secondary w-full" onClick={() => setEmailOpen(false)}>
+              إلغاء
             </button>
           </div>
-        ) : null}
-      </section>
+        </div>
+      ) : null}
+      {deleteOpen ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm space-y-3 rounded-3xl bg-white p-4">
+            <p className="font-black">حذف المشروع</p>
+            <p className="text-sm text-stone-600">هل أنت متأكد من حذف مشروع «{project.name}»؟</p>
+            <p className="text-sm font-bold text-rose-700">لا يمكن التراجع عن هذا الإجراء.</p>
+            <button
+              type="button"
+              className="btn w-full bg-rose-700 text-white"
+              onClick={() => {
+                onDelete(project.id);
+                router.push("/projects/");
+              }}
+            >
+              حذف
+            </button>
+            <button type="button" className="btn btn-secondary w-full" onClick={() => setDeleteOpen(false)}>
+              إلغاء
+            </button>
+          </div>
+        </div>
+      ) : null}
       {editing ? (
       <form
         className="card space-y-3"
