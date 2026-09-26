@@ -2,8 +2,12 @@ export type Person = {
   id: string;
   name: string;
   phone?: string;
+  extraPhone?: string;
   email?: string;
   notes?: string;
+  active?: boolean;
+  specialties?: string[];
+  attachmentDataUrl?: string;
 };
 
 export type ProjectStatus =

@@ -82,7 +82,16 @@ type StoreApi = {
   updatePerson: (
     kind: "clients" | "contractors" | "suppliers",
     id: string,
-    patch: { name: string; phone?: string; email?: string; notes?: string },
+    patch: {
+      name: string;
+      phone?: string;
+      extraPhone?: string;
+      email?: string;
+      notes?: string;
+      active?: boolean;
+      specialties?: string[];
+      attachmentDataUrl?: string;
+    },
   ) => void;
   addTransaction: (
     input: Omit<Transaction, "id" | "createdAt"> & { id?: string },
@@ -310,8 +319,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             if (person.id !== id) return person;
             const next: Person = { ...person, name };
             if ("phone" in patch) next.phone = patch.phone?.trim() || undefined;
+            if ("extraPhone" in patch) next.extraPhone = patch.extraPhone?.trim() || undefined;
             if ("email" in patch) next.email = patch.email?.trim() || undefined;
             if ("notes" in patch) next.notes = patch.notes?.trim() || undefined;
+            if ("active" in patch) next.active = patch.active;
+            if ("specialties" in patch) next.specialties = patch.specialties?.filter(Boolean);
+            if ("attachmentDataUrl" in patch) next.attachmentDataUrl = patch.attachmentDataUrl || undefined;
             return next;
           }),
         }));
