@@ -8,6 +8,7 @@ export function AppShell({
   action,
   showFab = false,
   fabHref = "/money/",
+  fabLabel = "تسجيل حركة فلوس",
   onFabClick,
 }: {
   title: string;
@@ -15,6 +16,7 @@ export function AppShell({
   action?: React.ReactNode;
   showFab?: boolean;
   fabHref?: string;
+  fabLabel?: string;
   onFabClick?: () => void;
 }) {
   return (
@@ -45,7 +47,7 @@ export function AppShell({
           <Link
             href={fabHref}
             className="fixed bottom-20 left-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--fab)] text-3xl text-white shadow-lg"
-            aria-label="تسجيل حركة فلوس"
+            aria-label={fabLabel}
           >
             +
           </Link>

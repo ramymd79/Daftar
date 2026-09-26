@@ -22,6 +22,7 @@ function ProjectInner() {
     deleteProject,
     addPhoto,
     deletePhoto,
+    updateAgreement,
     addAlbum,
     updateAlbum,
     deleteAlbum,
@@ -31,6 +32,8 @@ function ProjectInner() {
   const tab = (params.get("tab") as ProjectTab) || "finance";
   const project = state.projects.find((item) => item.id === projectId);
   const [addOpen, setAddOpen] = useState(false);
+  const [agreementId, setAgreementId] = useState("");
+  const [supplierId, setSupplierId] = useState("");
 
   if (!project) {
     return (
@@ -45,14 +48,20 @@ function ProjectInner() {
 
   const client = state.clients.find((item) => item.id === project.clientId);
   const moneyHref = `/money/?projectId=${encodeURIComponent(project.id)}`;
-  const agreements = (state.agreements || []).filter((item) => item.projectId === project.id);
   const onFinance = tab === "finance";
 
   return (
     <AppShell
       title={project.name}
       showFab={tab !== "gallery"}
-      fabHref={moneyHref}
+      fabHref={
+        tab === "contractors"
+          ? `/agreement/?projectId=${encodeURIComponent(project.id)}`
+          : tab === "suppliers"
+            ? `/money/?projectId=${encodeURIComponent(project.id)}&kind=purchase`
+            : moneyHref
+      }
+      fabLabel={tab === "contractors" ? "إضافة مقاول" : tab === "suppliers" ? "تسجيل شراء" : "تسجيل حركة فلوس"}
       onFabClick={onFinance ? () => setAddOpen(true) : undefined}
     >
       <div className="mb-3 text-sm text-stone-600">
@@ -68,85 +77,17 @@ function ProjectInner() {
       ) : null}
 
       {tab === "contractors" ? (
-        <div className="mt-3 space-y-3">
-          <Link
-            href={`/agreement/?projectId=${encodeURIComponent(project.id)}`}
-            className="card block text-center"
-          >
-            <p className="text-lg font-black">اتفقت مع مقاول على المشروع؟</p>
-            <p className="mt-1 text-sm text-stone-600">سجّل الاتفاق ع المشروع</p>
-          </Link>
-          <Link
-            href={`/contractor-payment/?projectId=${encodeURIComponent(project.id)}`}
-            className="card block text-center"
-          >
-            <p className="text-lg font-black">تسجيل مدفوعات مقاول</p>
-            <p className="mt-1 text-sm text-stone-600">سجل مدفوعات لمقاول مسؤول عن أعمال في المشروع</p>
-          </Link>
-          {agreements.length === 0 ? (
-            <p className="text-sm text-stone-500">لسه مفيش اتفاقات.</p>
-          ) : (
-            agreements.map((agreement) => {
-              const person = state.contractors.find((item) => item.id === agreement.contractorId);
-              const related = expensesForPerson(
-                state,
-                "contractorId",
-                agreement.contractorId,
-                project.id,
-              );
-              const paid = related.reduce((sum, tx) => sum + expenseBreakdown(tx).total, 0);
-              const ratio = agreement.amount > 0 ? Math.min(100, (paid / agreement.amount) * 100) : 0;
-              const tags = [
-                ...new Set(
-                  related
-                    .map((tx) => state.categories.find((item) => item.id === tx.categoryId)?.name)
-                    .filter(Boolean),
-                ),
-              ];
-              return (
-                <article key={agreement.id} className="card">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-black">{person?.name || "مقاول"}</p>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {tags.map((tag) => (
-                          <span key={tag} className="rounded-full bg-stone-100 px-2 py-0.5 text-xs">
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <span
-                      className={`rounded-full px-2 py-1 text-xs font-bold ${
-                        paid > 0 ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
-                      }`}
-                    >
-                      {paid > 0 ? "يعمل" : "بانتظار الدفع"}
-                    </span>
-                  </div>
-                  <div className="mt-3 grid grid-cols-2 text-center text-sm">
-                    <div>
-                      <p className="text-stone-500">المدفوع</p>
-                      <p className="font-black">{formatMoney(paid)}</p>
-                    </div>
-                    <div>
-                      <p className="text-stone-500">المتفق عليه</p>
-                      <p className="font-black">{formatMoney(agreement.amount)}</p>
-                    </div>
-                  </div>
-                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-stone-100">
-                    <div className="h-full bg-[var(--brand)]" style={{ width: `${ratio}%` }} />
-                  </div>
-                  {agreement.notes ? <p className="mt-2 text-sm text-stone-500">{agreement.notes}</p> : null}
-                </article>
-              );
-            })
-          )}
-        </div>
+        <ContractorTab
+          projectId={project.id}
+          projectName={project.name}
+          selectedId={agreementId}
+          onSelect={setAgreementId}
+          onSaveAgreement={(id, amount, notes) => updateAgreement(id, { amount, notes })}
+        />
       ) : null}
 
       {tab === "suppliers" ? (
-        <SupplierList projectId={project.id} />
+        <SupplierList projectId={project.id} selectedId={supplierId} onSelect={setSupplierId} />
       ) : null}
 
       {tab === "gallery" ? (
@@ -220,7 +161,193 @@ function ProjectInner() {
   );
 }
 
-function SupplierList({ projectId }: { projectId: string }) {
+function purchaseCountLabel(count: number) {
+  if (count === 1) return "عملية شراء واحدة";
+  return `${count.toLocaleString("ar-EG")} عمليات شراء`;
+}
+
+function ContractorTab({
+  projectId,
+  projectName,
+  selectedId,
+  onSelect,
+  onSaveAgreement,
+}: {
+  projectId: string;
+  projectName: string;
+  selectedId: string;
+  onSelect: (id: string) => void;
+  onSaveAgreement: (id: string, amount: number, notes: string) => void;
+}) {
+  const { state } = useStore();
+  const [editing, setEditing] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [notes, setNotes] = useState("");
+  const agreements = (state.agreements || []).filter((item) => item.projectId === projectId);
+  const selected = agreements.find((item) => item.id === selectedId);
+
+  if (selected) {
+    const person = state.contractors.find((item) => item.id === selected.contractorId);
+    const related = expensesForPerson(state, "contractorId", selected.contractorId, projectId);
+    const paid = related.reduce((sum, tx) => sum + expenseBreakdown(tx).total, 0);
+    const tags = [
+      ...new Set(
+        related.map((tx) => state.categories.find((item) => item.id === tx.categoryId)?.name).filter(Boolean),
+      ),
+    ];
+    if (editing) {
+      return (
+        <form
+          className="mt-3 space-y-3"
+          onSubmit={(event: FormEvent) => {
+            event.preventDefault();
+            onSaveAgreement(selected.id, parseUserNumber(amount) || 0, notes);
+            setEditing(false);
+          }}
+        >
+          <h2 className="text-center text-lg font-black">تعديل التعاقد</h2>
+          <label className="block text-sm font-semibold">
+            المقاول
+            <input className="input mt-1" value={person?.name || ""} disabled />
+          </label>
+          <label className="block text-sm font-semibold">
+            المشروع
+            <input className="input mt-1" value="المشروع" disabled />
+          </label>
+          <label className="block text-sm font-semibold">
+            المبلغ المتفق عليه <span className="font-normal text-stone-400">اختياري</span>
+            <input className="input mt-1" inputMode="numeric" value={amount} onChange={(event) => setAmount(event.target.value)} />
+          </label>
+          <label className="block text-sm font-semibold">
+            ملاحظات <span className="font-normal text-stone-400">اختياري</span>
+            <textarea className="input mt-1 min-h-20" value={notes} onChange={(event) => setNotes(event.target.value)} />
+          </label>
+          <button type="submit" className="btn btn-primary w-full">حفظ التعديلات</button>
+          <button type="button" className="btn btn-secondary w-full" onClick={() => setEditing(false)}>إلغاء</button>
+        </form>
+      );
+    }
+    return (
+      <div className="mt-3 space-y-3">
+        <div className="flex items-center justify-between">
+          <button type="button" className="text-sm font-bold text-stone-500" onClick={() => onSelect("")}>رجوع</button>
+          <p className="font-black">تفاصيل التعاقد</p>
+          <button
+            type="button"
+            className="text-sm font-bold text-[var(--brand)]"
+            onClick={() => {
+              setAmount(selected.amount ? String(selected.amount) : "");
+              setNotes(selected.notes || "");
+              setEditing(true);
+            }}
+          >
+            تعديل
+          </button>
+        </div>
+        <div className="card">
+          <p className="font-black">{person?.name || "مقاول"}</p>
+          <p className="mt-1 text-sm text-stone-500">{paid < selected.amount ? "بانتظار الدفع" : statusLabel("active")}</p>
+          <div className="mt-2 flex flex-wrap gap-1">
+            {tags.map((tag) => (
+              <span key={tag} className="rounded-full bg-stone-100 px-2 py-0.5 text-xs">{tag}</span>
+            ))}
+          </div>
+          <Link href={`/contractors/?id=${encodeURIComponent(selected.contractorId)}`} className="mt-3 block text-sm font-bold text-[var(--brand)]">
+            عرض ملف المقاول الكامل
+          </Link>
+        </div>
+        <div className="card space-y-2">
+          <p className="font-black">ملخص التعاقد والمدفوعات</p>
+          <p className="flex justify-between text-sm"><span>المتفق عليه</span><span className="font-black">{formatMoney(selected.amount)}</span></p>
+          <p className="flex justify-between text-sm"><span>المستلم</span><span className="font-black">{formatMoney(paid)}</span></p>
+          <p className="flex justify-between text-sm"><span>المتبقي</span><span className="font-black">{formatMoney(Math.max(0, selected.amount - paid))}</span></p>
+        </div>
+        <div className="card text-sm">
+          <p className="font-bold">{projectName}</p>
+          <p className="mt-1 text-stone-500">{formatDay(selected.createdAt)}</p>
+          {selected.notes ? <p className="mt-2">{selected.notes}</p> : <p className="mt-2 text-stone-400">مفيش ملاحظات على التعاقد</p>}
+        </div>
+        <p className="font-black">سجل المدفوعات في هذا المشروع</p>
+        {related.length === 0 ? <p className="text-sm text-stone-500">لسه مفيش دفعات.</p> : related.map((tx) => (
+          <p key={tx.id} className="card flex justify-between text-sm">
+            <span>{formatDay(tx.date)}</span>
+            <span className="font-black">{formatMoney(expenseBreakdown(tx).total)}</span>
+          </p>
+        ))}
+      </div>
+    );
+  }
+
+  if (agreements.length === 0) {
+    return (
+      <div className="card mt-3 py-10 text-center">
+        <p className="text-lg font-black">لا يوجد مقاولون في هذا المشروع</p>
+        <Link href={`/agreement/?projectId=${encodeURIComponent(projectId)}`} className="btn btn-primary mt-4 inline-flex">
+          إضافة مقاول جديد
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 space-y-3">
+      {agreements.map((agreement) => {
+        const person = state.contractors.find((item) => item.id === agreement.contractorId);
+        const related = expensesForPerson(state, "contractorId", agreement.contractorId, projectId);
+        const paid = related.reduce((sum, tx) => sum + expenseBreakdown(tx).total, 0);
+        const ratio = agreement.amount > 0 ? Math.min(100, (paid / agreement.amount) * 100) : 0;
+        const tags = [
+          ...new Set(
+            related.map((tx) => state.categories.find((item) => item.id === tx.categoryId)?.name).filter(Boolean),
+          ),
+        ];
+        const waiting = agreement.amount > 0 ? paid < agreement.amount : paid === 0;
+        return (
+          <button key={agreement.id} type="button" className="card w-full text-right" onClick={() => onSelect(agreement.id)}>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-black">{person?.name || "مقاول"}</p>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {tags.map((tag) => (
+                    <span key={tag} className="rounded-full bg-stone-100 px-2 py-0.5 text-xs">{tag}</span>
+                  ))}
+                </div>
+              </div>
+              {waiting ? (
+                <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-bold text-amber-800">بانتظار الدفع</span>
+              ) : null}
+            </div>
+            <div className="mt-3 grid grid-cols-2 text-center text-sm">
+              <div>
+                <p className="text-stone-500">المدفوع</p>
+                <p className="font-black">{paid === 0 ? "·" : formatMoney(paid)}</p>
+              </div>
+              <div>
+                <p className="text-stone-500">المتفق عليه</p>
+                <p className="font-black">{agreement.amount === 0 ? "·" : formatMoney(agreement.amount)}</p>
+              </div>
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-stone-100">
+              <div className="h-full bg-[var(--brand)]" style={{ width: `${ratio}%` }} />
+            </div>
+          </button>
+        );
+      })}
+      <p className="pt-2 text-center text-xs text-stone-400">نهاية القائمة</p>
+      <p className="text-center text-xs text-stone-400">اطلعت على الكل</p>
+    </div>
+  );
+}
+
+function SupplierList({
+  projectId,
+  selectedId,
+  onSelect,
+}: {
+  projectId: string;
+  selectedId: string;
+  onSelect: (id: string) => void;
+}) {
   const { state } = useStore();
   const people = state.suppliers
     .map((person) => {
@@ -232,6 +359,46 @@ function SupplierList({ projectId }: { projectId: string }) {
       };
     })
     .filter((person) => person.txs.length > 0);
+  const selected = people.find((person) => person.id === selectedId);
+
+  if (selected) {
+    const digits = (selected.phone || "").replace(/\D/g, "");
+    return (
+      <div className="mt-3 space-y-3">
+        <button type="button" className="text-sm font-bold text-stone-500" onClick={() => onSelect("")}>رجوع</button>
+        <div className="card">
+          <p className="text-lg font-black">{selected.name}</p>
+          <Link href={`/suppliers/?id=${encodeURIComponent(selected.id)}`} className="mt-2 block text-sm font-bold text-[var(--brand)]">
+            عرض الملف الكامل للمورد
+          </Link>
+          {selected.phone ? (
+            <div className="mt-3 flex gap-2">
+              <a className="btn btn-secondary flex-1 text-center" href={`tel:${selected.phone}`}>اتصال</a>
+              {digits ? (
+                <a className="btn btn-secondary flex-1 text-center" href={`https://wa.me/${digits}`} target="_blank" rel="noreferrer">واتساب</a>
+              ) : null}
+            </div>
+          ) : null}
+          {selected.notes ? <p className="mt-3 text-sm">{selected.notes}</p> : null}
+        </div>
+        <div className="card">
+          <p className="text-sm text-stone-500">الإنفاق في المشروع</p>
+          <p className="text-lg font-black text-[#b4533a]">{formatMoney(selected.spent)}</p>
+        </div>
+        <p className="font-black">المشتريات في هذا المشروع</p>
+        <p className="text-sm text-stone-500">{purchaseCountLabel(selected.txs.length)}</p>
+        {selected.txs.map((tx) => (
+          <p key={tx.id} className="card flex justify-between text-sm">
+            <span>
+              {tx.notes || "شراء مواد"}
+              <span className="block text-xs text-stone-500">{formatDay(tx.date)}</span>
+            </span>
+            <span className="font-black">{formatMoney(expenseBreakdown(tx).total)}</span>
+          </p>
+        ))}
+      </div>
+    );
+  }
 
   if (people.length === 0) {
     return <p className="card mt-3 text-stone-500">لسه مفيش مورد متربط بمصروف المشروع.</p>;
@@ -240,24 +407,16 @@ function SupplierList({ projectId }: { projectId: string }) {
   return (
     <div className="mt-3 space-y-3">
       {people.map((person) => (
-        <article key={person.id} className="card">
+        <button key={person.id} type="button" className="card w-full text-right" onClick={() => onSelect(person.id)}>
           <div className="flex items-center justify-between">
             <p className="font-black">{person.name}</p>
             <p className="font-black text-[#b4533a]">{formatMoney(person.spent)}</p>
           </div>
-          <ul className="mt-2 divide-y divide-stone-100 text-sm">
-            {person.txs.map((tx) => (
-              <li key={tx.id} className="flex items-center justify-between gap-3 py-2">
-                <span>
-                  {tx.notes || "مصروف"}
-                  <span className="block text-xs text-stone-500">{formatDay(tx.date)}</span>
-                </span>
-                <span className="font-bold">{formatMoney(expenseBreakdown(tx).total)}</span>
-              </li>
-            ))}
-          </ul>
-        </article>
+          <p className="mt-1 text-sm text-stone-500">{purchaseCountLabel(person.txs.length)}</p>
+        </button>
       ))}
+      <p className="pt-2 text-center text-xs text-stone-400">نهاية القائمة</p>
+      <p className="text-center text-xs text-stone-400">اطلعت على الكل</p>
     </div>
   );
 }

@@ -20,7 +20,7 @@ function nowInput() {
 function MoneyInner() {
   const params = useSearchParams();
   const router = useRouter();
-  const { state, addTransaction, addCategory, renameCategory } = useStore();
+  const { state, addTransaction, addCategory, renameCategory, deleteCategory } = useStore();
   const presetProject = params.get("projectId") || "";
   const kindParam = params.get("kind");
   const lockedProject = Boolean(presetProject);
@@ -112,7 +112,7 @@ function MoneyInner() {
     const materials = Number(amount);
     const transportAmount = Number(transport) || 0;
     const storageAmount = Number(storage) || 0;
-    if (!projectId || !categoryId || materials <= 0) return;
+    if (!projectId || !categoryId || materials <= 0 || !item.trim()) return;
     const total = materials + transportAmount + storageAmount;
     if (projectedRemainingAfterExpense(total) < 0) {
       setConfirmOpen(true);
@@ -218,7 +218,7 @@ function MoneyInner() {
             )}
 
             <label className="block text-sm font-semibold">
-              الوصف <span className="font-normal text-stone-400">اختياري</span>
+              الوصف <span className="text-rose-600">مطلوب</span>
               <input
                 className="input mt-1"
                 placeholder="وصف المواد المشتراة"
@@ -371,75 +371,37 @@ function MoneyInner() {
             </div>
           </div>
 
-          <div className="mt-auto flex items-center justify-between pt-6">
-            <Link
-              href={backHref}
-              className="grid h-12 w-12 place-items-center rounded-full border border-stone-300 bg-white text-xl"
-              aria-label="إلغاء"
-            >
-              ×
-            </Link>
-            <button
-              type="submit"
-              className="grid h-14 w-14 place-items-center rounded-full bg-sky-600 text-2xl text-white disabled:opacity-50"
-              disabled={busy || !categoryId}
-              aria-label="حفظ"
-            >
-              ✓
+          <div className="mt-auto grid grid-cols-2 gap-2 pt-6">
+            <button type="submit" className="btn btn-primary" disabled={busy || !categoryId || !item.trim()}>
+              تسجيل الشراء
             </button>
+            <Link href={backHref} className="btn btn-secondary text-center">
+              إلغاء
+            </Link>
           </div>
         </form>
 
         {manageCats ? (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40">
-            <button type="button" className="absolute inset-0" aria-label="إغلاق" onClick={() => setManageCats(false)} />
-            <div className="relative z-10 max-h-[80dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white px-4 pb-8 pt-4">
-              <h2 className="mb-3 text-center text-lg font-black">إدارة البنود</h2>
-              <ul className="space-y-2">
-                {state.categories.map((category) => (
-                  <li key={category.id} className="flex gap-2">
-                    <input
-                      className="input flex-1"
-                      value={renameDrafts[category.id] ?? category.name}
-                      onChange={(e) =>
-                        setRenameDrafts((prev) => ({ ...prev, [category.id]: e.target.value }))
-                      }
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-secondary shrink-0"
-                      onClick={() => renameCategory(category.id, renameDrafts[category.id] ?? category.name)}
-                    >
-                      حفظ
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <div className="mt-3 flex gap-2">
-                <input
-                  className="input flex-1"
-                  placeholder="بند جديد"
-                  value={newCatName}
-                  onChange={(e) => setNewCatName(e.target.value)}
-                />
-                <button
-                  type="button"
-                  className="btn btn-primary shrink-0"
-                  onClick={() => {
-                    if (!newCatName.trim()) return;
-                    const id = addCategory(newCatName);
-                    setCategoryId(id);
-                    setNewCatName("");
-                  }}
-                >
-                  إضافة
-                </button>
-              </div>
-              <button type="button" className="btn btn-secondary mt-3 w-full" onClick={() => setManageCats(false)}>
-                تم
-              </button>
-            </div>
-          </div>
+          <CategoryManager
+            categories={state.categories}
+            useCount={(id) => state.transactions.filter((tx) => tx.categoryId === id).length}
+            newName={newCatName}
+            drafts={renameDrafts}
+            onNewName={setNewCatName}
+            onDraft={(id, value) => setRenameDrafts((prev) => ({ ...prev, [id]: value }))}
+            onAdd={() => {
+              if (!newCatName.trim()) return;
+              const id = addCategory(newCatName);
+              setCategoryId(id);
+              setNewCatName("");
+            }}
+            onAddAll={(names) => {
+              names.forEach((name) => addCategory(name));
+            }}
+            onRename={(id) => renameCategory(id, renameDrafts[id] ?? "")}
+            onDelete={deleteCategory}
+            onClose={() => setManageCats(false)}
+          />
         ) : null}
 
         {confirmOpen ? (
@@ -691,6 +653,144 @@ function MoneyInner() {
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+const SUGGESTED_CATEGORIES = [
+  "حديد",
+  "أسمنت",
+  "رمل",
+  "سباكة",
+  "أدوات صحية",
+  "كهرباء",
+  "إنارة",
+  "دهانات",
+  "أخشاب",
+  "موبيليا",
+  "رخام",
+];
+
+function CategoryManager({
+  categories,
+  useCount,
+  newName,
+  drafts,
+  onNewName,
+  onDraft,
+  onAdd,
+  onAddAll,
+  onRename,
+  onDelete,
+  onClose,
+}: {
+  categories: { id: string; name: string }[];
+  useCount: (id: string) => number;
+  newName: string;
+  drafts: Record<string, string>;
+  onNewName: (value: string) => void;
+  onDraft: (id: string, value: string) => void;
+  onAdd: () => void;
+  onAddAll: (names: string[]) => void;
+  onRename: (id: string) => void;
+  onDelete: (id: string) => void;
+  onClose: () => void;
+}) {
+  const [editingId, setEditingId] = useState("");
+  const available = SUGGESTED_CATEGORIES.filter((name) => !categories.some((item) => item.name === name));
+  return (
+    <div className="fixed inset-0 z-[80] overflow-auto bg-[var(--bg)]">
+      <div className="mx-auto min-h-dvh max-w-lg px-4 py-6">
+        <h2 className="mb-4 text-center text-lg font-black">إدارة البنود</h2>
+        <div className="flex gap-2">
+          <input
+            className="input flex-1"
+            placeholder="عزل"
+            aria-label="إضافة بند جديد"
+            value={newName}
+            onChange={(event) => onNewName(event.target.value)}
+          />
+          <button type="button" className="btn btn-primary shrink-0" onClick={onAdd}>إضافة</button>
+        </div>
+        {categories.length === 0 ? (
+          <p className="card mt-4 text-center text-stone-500">لا توجد بنود بعد</p>
+        ) : (
+          <ul className="mt-4 space-y-2">
+            {categories.map((category) => {
+              const count = useCount(category.id);
+              const editing = editingId === category.id;
+              return (
+                <li key={category.id} className="card">
+                  {editing ? (
+                    <div className="flex gap-2">
+                      <input
+                        className="input flex-1"
+                        value={drafts[category.id] ?? category.name}
+                        onChange={(event) => onDraft(category.id, event.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-primary shrink-0"
+                        onClick={() => {
+                          onRename(category.id);
+                          setEditingId("");
+                        }}
+                      >
+                        حفظ
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-black">{category.name}</p>
+                        <p className="text-xs text-stone-500">
+                          {count === 0 ? "لا توجد ارتباطات" : `${count.toLocaleString("ar-EG")} ارتباط`}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button type="button" className="text-sm font-bold text-[var(--brand)]" onClick={() => {
+                          onDraft(category.id, category.name);
+                          setEditingId(category.id);
+                        }}>
+                          تعديل
+                        </button>
+                        <button type="button" className="text-sm font-bold text-rose-700" onClick={() => onDelete(category.id)}>
+                          حذف
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <div className="mt-4 flex items-center justify-between">
+          <p className="font-black">اقتراحات سريعة</p>
+          <p className="text-xs text-stone-500">{available.length.toLocaleString("ar-EG")} متاحة</p>
+        </div>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {available.map((name) => (
+            <button
+              key={name}
+              type="button"
+              className="rounded-full border border-stone-200 bg-white px-3 py-1.5 text-sm font-bold"
+              onClick={() => onAddAll([name])}
+            >
+              + {name}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          className="btn btn-secondary mt-3 w-full"
+          disabled={available.length === 0}
+          onClick={() => onAddAll(available)}
+        >
+          إضافة الكل
+        </button>
+        <button type="button" className="btn btn-primary mt-3 w-full" onClick={onClose}>تم</button>
+      </div>
     </div>
   );
 }

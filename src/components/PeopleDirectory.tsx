@@ -87,12 +87,20 @@ function NotReady({ label }: { label: string }) {
   );
 }
 
-export function PeopleDirectory({ kind, title }: { kind: Kind; title: string }) {
+const SUPPLIER_CHIPS = ["حديد", "أسمنت", "رمل", "سباكة", "أدوات صحية", "كهرباء", "إنارة", "دهانات", "أخشاب", "موبيليا", "رخام"];
+type SupplierSort = "newest" | "oldest" | "name_az" | "name_za" | "spend_high" | "spend_low";
+
+export function PeopleDirectory({ kind, title, initialId = "" }: { kind: Kind; title: string; initialId?: string }) {
   const { state, addClient, addContractor, addSupplier } = useStore();
   const [open, setOpen] = useState(false);
-  const [selectedId, setSelectedId] = useState("");
+  const [selectedId, setSelectedId] = useState(initialId);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [sortKey, setSortKey] = useState<SupplierSort>("newest");
+  const [chips, setChips] = useState<string[]>([]);
+  const [draftSort, setDraftSort] = useState<SupplierSort>("newest");
+  const [draftChips, setDraftChips] = useState<string[]>([]);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const text = copy[kind];
@@ -100,7 +108,11 @@ export function PeopleDirectory({ kind, title }: { kind: Kind; title: string }) 
   const list =
     kind === "clients" ? state.clients : kind === "contractors" ? state.contractors : state.suppliers;
   const selected = list.find((person) => person.id === selectedId);
-  const visible = list.filter((person) => personMatches(kind, person, query));
+  const visible = sortedPeople(kind, state, list.filter((person) => personMatches(kind, person, query)), sortKey, chips);
+
+  useEffect(() => {
+    if (initialId) setSelectedId(initialId);
+  }, [initialId]);
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -176,7 +188,21 @@ export function PeopleDirectory({ kind, title }: { kind: Kind; title: string }) 
           onChange={(event) => setQuery(event.target.value)}
           aria-label={text.search}
         />
-        <NotReady label="تصفية" />
+        {kind === "suppliers" ? (
+          <button
+            type="button"
+            className="shrink-0 rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-bold"
+            onClick={() => {
+              setDraftSort(sortKey);
+              setDraftChips(chips);
+              setFilterOpen(true);
+            }}
+          >
+            تصفية
+          </button>
+        ) : (
+          <NotReady label="تصفية" />
+        )}
       </div>
       {list.length === 0 ? (
         <p className="card text-stone-600">{text.empty}</p>
@@ -192,7 +218,109 @@ export function PeopleDirectory({ kind, title }: { kind: Kind; title: string }) 
           <p className="pt-2 text-center text-xs text-stone-400">نهاية القائمة</p>
         </div>
       )}
+      {filterOpen && kind === "suppliers" ? (
+        <SupplierFilter
+          sortKey={draftSort}
+          chips={draftChips}
+          onSort={setDraftSort}
+          onToggle={(name) => setDraftChips((prev) => (prev.includes(name) ? prev.filter((item) => item !== name) : [...prev, name]))}
+          onClear={() => {
+            setDraftSort("newest");
+            setDraftChips([]);
+          }}
+          onClose={() => setFilterOpen(false)}
+          onApply={() => {
+            setSortKey(draftSort);
+            setChips(draftChips);
+            setFilterOpen(false);
+          }}
+        />
+      ) : null}
     </AppShell>
+  );
+}
+
+function supplierSpent(state: AppState, id: string) {
+  return expensesForPerson(state, "supplierId", id).reduce((sum, tx) => sum + expenseBreakdown(tx).total, 0);
+}
+
+function sortedPeople(kind: Kind, state: AppState, people: Person[], sortKey: SupplierSort, chips: string[]) {
+  if (kind !== "suppliers") return people;
+  const filtered = chips.length
+    ? people.filter((person) => {
+        const trades = tradeNames(state, expensesForPerson(state, "supplierId", person.id));
+        return chips.some((chip) => trades.includes(chip));
+      })
+    : people;
+  const copy = [...filtered];
+  if (sortKey === "oldest") return copy.reverse();
+  if (sortKey === "name_az") return copy.sort((a, b) => a.name.localeCompare(b.name, "ar"));
+  if (sortKey === "name_za") return copy.sort((a, b) => b.name.localeCompare(a.name, "ar"));
+  if (sortKey === "spend_high") return copy.sort((a, b) => supplierSpent(state, b.id) - supplierSpent(state, a.id));
+  if (sortKey === "spend_low") return copy.sort((a, b) => supplierSpent(state, a.id) - supplierSpent(state, b.id));
+  return copy;
+}
+
+function SupplierFilter({
+  sortKey,
+  chips,
+  onSort,
+  onToggle,
+  onClear,
+  onClose,
+  onApply,
+}: {
+  sortKey: SupplierSort;
+  chips: string[];
+  onSort: (value: SupplierSort) => void;
+  onToggle: (name: string) => void;
+  onClear: () => void;
+  onClose: () => void;
+  onApply: () => void;
+}) {
+  const sorts: { id: SupplierSort; label: string }[] = [
+    { id: "newest", label: "الإضافة الأحدث" },
+    { id: "oldest", label: "الإضافة الأقدم" },
+    { id: "name_az", label: "الاسم أ-ي" },
+    { id: "name_za", label: "الاسم ي-أ" },
+    { id: "spend_high", label: "الإنفاق الأعلى" },
+    { id: "spend_low", label: "الإنفاق الأقل" },
+  ];
+  return (
+    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/40">
+      <button type="button" className="absolute inset-0" aria-label="إغلاق" onClick={onClose} />
+      <div className="relative max-h-[85dvh] w-full max-w-lg overflow-auto rounded-t-3xl bg-[var(--bg)] p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <button type="button" className="text-sm font-bold text-[var(--brand)]" onClick={onClear}>مسح الكل</button>
+          <p className="font-black">تصفية وترتيب</p>
+          <span className="w-14" />
+        </div>
+        <div className="space-y-2">
+          {sorts.map((option) => (
+            <label key={option.id} className="card flex items-center justify-between">
+              <span>{option.label}</span>
+              <input type="radio" name="supplier-sort" checked={sortKey === option.id} onChange={() => onSort(option.id)} />
+            </label>
+          ))}
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {SUPPLIER_CHIPS.map((name) => (
+            <button
+              key={name}
+              type="button"
+              className={`rounded-full border px-3 py-1.5 text-sm font-bold ${chips.includes(name) ? "border-[var(--brand)] bg-[#f3e6dc]" : "border-stone-200 bg-white"}`}
+              onClick={() => onToggle(name)}
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button type="button" className="btn btn-primary" onClick={onApply}>تطبيق الفلاتر</button>
+          <button type="button" className="btn btn-secondary" onClick={onClose}>إلغاء</button>
+        </div>
+      </div>
+    </div>
   );
 }
 

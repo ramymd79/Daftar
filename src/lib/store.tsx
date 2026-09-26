@@ -90,6 +90,8 @@ type StoreApi = {
   deleteTransaction: (id: string) => void;
   addCategory: (name: string) => string;
   renameCategory: (id: string, name: string) => void;
+  deleteCategory: (id: string) => void;
+  updateAgreement: (id: string, patch: { amount?: number; notes?: string }) => void;
   addAlbum: (input: {
     projectId: string;
     name: string;
@@ -261,6 +263,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }));
         return id;
       },
+      updateAgreement: (id, patch) => {
+        setState((prev) => ({
+          ...prev,
+          agreements: (prev.agreements || []).map((item) =>
+            item.id === id
+              ? {
+                  ...item,
+                  amount: patch.amount !== undefined ? patch.amount : item.amount,
+                  notes: patch.notes !== undefined ? patch.notes.trim() || undefined : item.notes,
+                }
+              : item,
+          ),
+        }));
+      },
       addClient: (input) => {
         const id = newId("cli");
         const person: Person = {
@@ -359,6 +375,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           categories: prev.categories.map((item) =>
             item.id === id ? { ...item, name: trimmed } : item,
           ),
+        }));
+      },
+      deleteCategory: (id) => {
+        setState((prev) => ({
+          ...prev,
+          categories: prev.categories.filter((item) => item.id !== id),
         }));
       },
       addAlbum: (input) => {
