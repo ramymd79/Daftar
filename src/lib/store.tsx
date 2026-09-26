@@ -217,6 +217,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       resetDemo: () => {
         const fresh = createSeedState();
         fresh.unlocked = true;
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(STORAGE_KEY, JSON.stringify(fresh));
+        }
         setState(fresh);
       },
       addProject: (input) => {
