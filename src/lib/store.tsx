@@ -76,7 +76,14 @@ type StoreApi = {
     notes?: string;
     attachmentDataUrl?: string;
   }) => string;
-  addClient: (input: { name: string; phone?: string }) => string;
+  addClient: (input: {
+    name: string;
+    phone?: string;
+    extraPhone?: string;
+    email?: string;
+    notes?: string;
+    attachmentDataUrl?: string;
+  }) => string;
   addContractor: (input: {
     name: string;
     phone?: string;
@@ -300,6 +307,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           id,
           name: input.name.trim(),
           phone: input.phone?.trim() || undefined,
+          extraPhone: input.extraPhone?.trim() || undefined,
+          email: input.email?.trim() || undefined,
+          notes: input.notes?.trim() || undefined,
+          attachmentDataUrl: input.attachmentDataUrl || undefined,
         };
         setState((prev) => ({ ...prev, clients: [person, ...prev.clients] }));
         return id;
