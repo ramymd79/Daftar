@@ -15,11 +15,13 @@ export function createSeedState(): AppState {
         id: "cli_ahmed",
         name: "أحمد حسن العزب",
         phone: "+20 1099887766",
+        createdAt: "2024-08-01T10:00:00.000Z",
       },
       {
         id: "cli_mona",
         name: "منى عادل",
         phone: "+20 1011223344",
+        createdAt: "2024-09-10T10:00:00.000Z",
       },
     ],
     contractors: [

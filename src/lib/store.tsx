@@ -319,6 +319,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           email: input.email?.trim() || undefined,
           notes: input.notes?.trim() || undefined,
           attachmentDataUrl: input.attachmentDataUrl || undefined,
+          createdAt: new Date().toISOString(),
         };
         setState((prev) => ({ ...prev, clients: [person, ...prev.clients] }));
         return id;

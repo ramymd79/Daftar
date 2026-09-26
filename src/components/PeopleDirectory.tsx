@@ -67,24 +67,18 @@ function tradeNames(state: AppState, txs: Transaction[]) {
 function personMatches(kind: Kind, person: Person, query: string) {
   const needle = query.trim();
   if (!needle) return true;
-  const haystack = [person.name, person.phone || "", kind === "contractors" ? person.notes || "" : person.email || ""]
+  const phoneDigits = digitsOnly(person.phone || "");
+  const needleDigits = digitsOnly(needle);
+  if (needleDigits && phoneDigits.includes(needleDigits)) return true;
+  const haystack = [
+    person.name,
+    person.phone || "",
+    person.email || "",
+    kind === "contractors" ? person.notes || "" : "",
+  ]
     .join(" ")
     .toLowerCase();
   return haystack.includes(needle.toLowerCase());
-}
-
-function NotReady({ label }: { label: string }) {
-  return (
-    <button
-      type="button"
-      disabled
-      aria-disabled="true"
-      className="shrink-0 rounded-xl border border-dashed border-stone-300 bg-stone-100 px-3 py-2 text-center text-xs font-bold text-stone-500"
-    >
-      <span className="block">{label}</span>
-      <span className="mt-0.5 block font-normal">لسه مش شغالة</span>
-    </button>
-  );
 }
 
 const SUPPLIER_CHIPS = ["حديد", "أسمنت", "رمل", "سباكة", "أدوات صحية", "كهرباء", "إنارة", "دهانات", "أخشاب", "موبيليا", "رخام"];
@@ -98,7 +92,19 @@ type ContractorSort =
   | "name_za"
   | "paid_high"
   | "paid_low";
+type ClientSort =
+  | "active_first"
+  | "inactive_first"
+  | "name_az"
+  | "name_za"
+  | "newest"
+  | "oldest"
+  | "projects_high"
+  | "projects_low"
+  | "paid_high"
+  | "paid_low";
 type ProjectPresence = "active_projects" | "no_active" | "balance";
+type ClientPresence = "active_projects" | "no_active";
 
 function personTrades(state: AppState, kind: Kind, person: Person) {
   const fromTx =
@@ -215,6 +221,14 @@ export function PeopleDirectory({ kind, title, initialId = "" }: { kind: Kind; t
   const [draftCSort, setDraftCSort] = useState<ContractorSort>("active_first");
   const [draftCTrades, setDraftCTrades] = useState<string[]>([]);
   const [draftCPresence, setDraftCPresence] = useState<ProjectPresence[]>([]);
+  const [clientSort, setClientSort] = useState<ClientSort>("active_first");
+  const [clientPresence, setClientPresence] = useState<ClientPresence[]>([]);
+  const [clientFrom, setClientFrom] = useState("");
+  const [clientTo, setClientTo] = useState("");
+  const [draftClientSort, setDraftClientSort] = useState<ClientSort>("active_first");
+  const [draftClientPresence, setDraftClientPresence] = useState<ClientPresence[]>([]);
+  const [draftClientFrom, setDraftClientFrom] = useState("");
+  const [draftClientTo, setDraftClientTo] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const text = copy[kind];
@@ -228,7 +242,7 @@ export function PeopleDirectory({ kind, title, initialId = "" }: { kind: Kind; t
       ? sortedPeople(kind, state, matched, sortKey, chips)
       : kind === "contractors"
         ? sortedContractors(state, matched, cSort, cTrades, cPresence)
-        : matched;
+        : sortedClients(state, matched, clientSort, clientPresence, clientFrom, clientTo);
   const contractorTradeOptions = useMemo(() => {
     if (kind !== "contractors") return [];
     const names: string[] = [];
@@ -318,34 +332,49 @@ export function PeopleDirectory({ kind, title, initialId = "" }: { kind: Kind; t
           onChange={(event) => setQuery(event.target.value)}
           aria-label={text.search}
         />
-        {kind === "clients" ? (
-          <NotReady label="تصفية" />
-        ) : (
-          <button
-            type="button"
-            className="shrink-0 rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-bold"
-            onClick={() => {
-              if (kind === "suppliers") {
-                setDraftSort(sortKey);
-                setDraftChips(chips);
-              } else {
-                setDraftCSort(cSort);
-                setDraftCTrades(cTrades);
-                setDraftCPresence(cPresence);
-              }
-              setFilterOpen(true);
-            }}
-          >
-            تصفية
-          </button>
-        )}
+        <button
+          type="button"
+          className="shrink-0 rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-bold"
+          onClick={() => {
+            if (kind === "suppliers") {
+              setDraftSort(sortKey);
+              setDraftChips(chips);
+            } else if (kind === "contractors") {
+              setDraftCSort(cSort);
+              setDraftCTrades(cTrades);
+              setDraftCPresence(cPresence);
+            } else {
+              setDraftClientSort(clientSort);
+              setDraftClientPresence(clientPresence);
+              setDraftClientFrom(clientFrom);
+              setDraftClientTo(clientTo);
+            }
+            setFilterOpen(true);
+          }}
+        >
+          تصفية
+        </button>
       </div>
+      {kind === "clients" && clientPresence.includes("active_projects") ? (
+        <div className="mb-3 flex items-center gap-2 text-sm font-bold text-stone-700">
+          <span className="grid h-5 w-5 place-items-center rounded bg-emerald-600 text-xs text-white">✓</span>
+          <span>لديهم مشاريع نشطة</span>
+          <span className="rounded-full bg-stone-200 px-2 py-0.5 text-xs">{clientPresence.length.toLocaleString("ar-EG")}</span>
+        </div>
+      ) : null}
+      {kind === "clients" && clientPresence.includes("no_active") && !clientPresence.includes("active_projects") ? (
+        <div className="mb-3 flex items-center gap-2 text-sm font-bold text-stone-700">
+          <span className="grid h-5 w-5 place-items-center rounded bg-emerald-600 text-xs text-white">✓</span>
+          <span>بدون مشاريع نشطة</span>
+          <span className="rounded-full bg-stone-200 px-2 py-0.5 text-xs">{clientPresence.length.toLocaleString("ar-EG")}</span>
+        </div>
+      ) : null}
       {list.length === 0 ? (
         <p className="card text-stone-600">{text.empty}</p>
       ) : visible.length === 0 ? (
         <p className="card text-stone-600">مفيش نتيجة للبحث.</p>
       ) : kind === "clients" ? (
-        <ClientList people={visible} onOpen={setSelectedId} />
+        <ClientList people={visible} grouped={!clientPresence.length} onOpen={setSelectedId} />
       ) : (
         <div className="space-y-2">
           {visible.map((person) => (
@@ -355,6 +384,38 @@ export function PeopleDirectory({ kind, title, initialId = "" }: { kind: Kind; t
           {kind === "contractors" ? <p className="text-center text-xs text-stone-400">اطلعت على الكل</p> : null}
         </div>
       )}
+      {filterOpen && kind === "clients" ? (
+        <ClientFilter
+          sortKey={draftClientSort}
+          presence={draftClientPresence}
+          fromDate={draftClientFrom}
+          toDate={draftClientTo}
+          onSort={setDraftClientSort}
+          onTogglePresence={(flag) =>
+            setDraftClientPresence((prev) => {
+              if (prev.includes(flag)) return prev.filter((item) => item !== flag);
+              if (flag === "active_projects") return ["active_projects"];
+              return ["no_active"];
+            })
+          }
+          onFrom={setDraftClientFrom}
+          onTo={setDraftClientTo}
+          onClear={() => {
+            setDraftClientSort("active_first");
+            setDraftClientPresence([]);
+            setDraftClientFrom("");
+            setDraftClientTo("");
+          }}
+          onClose={() => setFilterOpen(false)}
+          onApply={() => {
+            setClientSort(draftClientSort);
+            setClientPresence(draftClientPresence);
+            setClientFrom(draftClientFrom);
+            setClientTo(draftClientTo);
+            setFilterOpen(false);
+          }}
+        />
+      ) : null}
       {filterOpen && kind === "contractors" ? (
         <ContractorFilter
           sortKey={draftCSort}
@@ -525,11 +586,21 @@ function sortedContractors(
   return copy;
 }
 
-function ChoiceChip({ selected, label, onClick }: { selected: boolean; label: string; onClick: () => void }) {
+function ChoiceChip({
+  selected,
+  label,
+  onClick,
+  wide,
+}: {
+  selected: boolean;
+  label: string;
+  onClick: () => void;
+  wide?: boolean;
+}) {
   return (
     <button
       type="button"
-      className={`rounded-full border px-3 py-1.5 text-sm font-bold ${selected ? "border-[var(--brand)] bg-[#f3e6dc]" : "border-stone-200 bg-white"}`}
+      className={`rounded-2xl border px-3 py-2 text-sm font-bold ${wide ? "w-full" : ""} ${selected ? "border-[var(--brand)] bg-[#f3e6dc]" : "border-stone-200 bg-white"}`}
       onClick={onClick}
     >
       {selected ? "✓ " : ""}
@@ -630,9 +701,194 @@ function ContractorFilter({
   );
 }
 
-function ClientList({ people, onOpen }: { people: Person[]; onOpen: (id: string) => void }) {
+function clientProjectCount(state: AppState, id: string) {
+  return state.projects.filter((project) => project.clientId === id).length;
+}
+
+function clientActiveCount(state: AppState, id: string) {
+  return state.projects.filter((project) => project.clientId === id && project.status === "active").length;
+}
+
+function clientPaidTotal(state: AppState, id: string) {
+  const projectIds = new Set(state.projects.filter((project) => project.clientId === id).map((project) => project.id));
+  return sumBy(
+    state.transactions.filter((tx) => tx.type === "client_payment" && projectIds.has(tx.projectId)),
+    (tx) => tx.amount,
+  );
+}
+
+function dayStamp(value?: string) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function sortedClients(
+  state: AppState,
+  people: Person[],
+  sortKey: ClientSort,
+  presence: ClientPresence[],
+  fromDate: string,
+  toDate: string,
+) {
+  let filtered = [...people];
+  if (presence.length) {
+    filtered = filtered.filter((person) => {
+      const active = clientActiveCount(state, person.id) > 0;
+      return presence.every((flag) => (flag === "active_projects" ? active : !active));
+    });
+  }
+  const from = dayStamp(fromDate);
+  const to = dayStamp(toDate);
+  if (from !== null || to !== null) {
+    filtered = filtered.filter((person) => {
+      const joined = dayStamp(person.createdAt);
+      if (joined === null) return false;
+      if (from !== null && joined < from) return false;
+      if (to !== null && joined > to) return false;
+      return true;
+    });
+  }
+  const copy = [...filtered];
+  if (sortKey === "name_az") return copy.sort((a, b) => a.name.localeCompare(b.name, "ar"));
+  if (sortKey === "name_za") return copy.sort((a, b) => b.name.localeCompare(a.name, "ar"));
+  if (sortKey === "oldest") return copy.reverse();
+  if (sortKey === "projects_high") {
+    return copy.sort((a, b) => clientProjectCount(state, b.id) - clientProjectCount(state, a.id));
+  }
+  if (sortKey === "projects_low") {
+    return copy.sort((a, b) => clientProjectCount(state, a.id) - clientProjectCount(state, b.id));
+  }
+  if (sortKey === "paid_high") return copy.sort((a, b) => clientPaidTotal(state, b.id) - clientPaidTotal(state, a.id));
+  if (sortKey === "paid_low") return copy.sort((a, b) => clientPaidTotal(state, a.id) - clientPaidTotal(state, b.id));
+  if (sortKey === "inactive_first") {
+    return copy.sort((a, b) => clientActiveCount(state, a.id) - clientActiveCount(state, b.id));
+  }
+  if (sortKey === "active_first") {
+    return copy.sort((a, b) => clientActiveCount(state, b.id) - clientActiveCount(state, a.id));
+  }
+  return copy;
+}
+
+function ClientFilter({
+  sortKey,
+  presence,
+  fromDate,
+  toDate,
+  onSort,
+  onTogglePresence,
+  onFrom,
+  onTo,
+  onClear,
+  onClose,
+  onApply,
+}: {
+  sortKey: ClientSort;
+  presence: ClientPresence[];
+  fromDate: string;
+  toDate: string;
+  onSort: (value: ClientSort) => void;
+  onTogglePresence: (flag: ClientPresence) => void;
+  onFrom: (value: string) => void;
+  onTo: (value: string) => void;
+  onClear: () => void;
+  onClose: () => void;
+  onApply: () => void;
+}) {
+  const sorts: { id: ClientSort; label: string }[] = [
+    { id: "active_first", label: "الحالة (النشط أولاً)" },
+    { id: "inactive_first", label: "الحالة (غير النشط أولاً)" },
+    { id: "name_az", label: "الاسم (أ ← ي)" },
+    { id: "name_za", label: "الاسم (ي ← أ)" },
+    { id: "newest", label: "الأحدث إضافة" },
+    { id: "oldest", label: "الأقدم إضافة" },
+    { id: "projects_high", label: "المشاريع: الأكثر" },
+    { id: "projects_low", label: "المشاريع: الأقل" },
+    { id: "paid_high", label: "المدفوعات: الأعلى" },
+    { id: "paid_low", label: "المدفوعات: الأقل" },
+  ];
+  const presenceOptions: { id: ClientPresence; label: string }[] = [
+    { id: "active_projects", label: "لديهم مشاريع نشطة" },
+    { id: "no_active", label: "بدون مشاريع نشطة" },
+  ];
+  return (
+    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/40">
+      <button type="button" className="absolute inset-0" aria-label="إغلاق" onClick={onClose} />
+      <div className="relative max-h-[85dvh] w-full max-w-lg overflow-auto rounded-t-3xl bg-[var(--bg)] p-4">
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-stone-300" />
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <button type="button" className="text-sm font-bold text-rose-700" onClick={onClear}>
+            إعادة تعيين
+          </button>
+          <p className="font-black">تصفية وفرز</p>
+          <button type="button" className="text-lg font-bold text-stone-500" aria-label="إغلاق" onClick={onClose}>
+            ×
+          </button>
+        </div>
+        <p className="mb-2 text-sm font-bold text-stone-500">الترتيب</p>
+        <div className="grid grid-cols-2 gap-2">
+          {sorts.map((option) => (
+            <ChoiceChip key={option.id} selected={sortKey === option.id} label={option.label} onClick={() => onSort(option.id)} />
+          ))}
+        </div>
+        <div className="mt-4">
+          <p className="mb-2 text-sm font-bold text-stone-500">الحالة</p>
+          <div className="space-y-2">
+            {presenceOptions.map((option) => (
+              <ChoiceChip
+                key={option.id}
+                selected={presence.includes(option.id)}
+                label={option.label}
+                wide
+                onClick={() => onTogglePresence(option.id)}
+              />
+            ))}
+          </div>
+        </div>
+        <div className="mt-4">
+          <p className="mb-2 text-sm font-bold text-stone-500">تاريخ الانضمام</p>
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              type="date"
+              className="input"
+              aria-label="من تاريخ"
+              value={fromDate}
+              onChange={(event) => onFrom(event.target.value)}
+            />
+            <input
+              type="date"
+              className="input"
+              aria-label="إلى تاريخ"
+              value={toDate}
+              onChange={(event) => onTo(event.target.value)}
+            />
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button type="button" className="btn btn-primary" onClick={onApply}>
+            تطبيق الفلاتر
+          </button>
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            إلغاء
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ClientList({
+  people,
+  grouped,
+  onOpen,
+}: {
+  people: Person[];
+  grouped: boolean;
+  onOpen: (id: string) => void;
+}) {
   const { state } = useStore();
-  const grouped = useMemo(() => {
+  const sections = useMemo(() => {
     const active: Person[] = [];
     const idle: Person[] = [];
     for (const person of people) {
@@ -643,11 +899,24 @@ function ClientList({ people, onOpen }: { people: Person[]; onOpen: (id: string)
     return { active, idle };
   }, [people, state.projects]);
 
+  if (!grouped) {
+    return (
+      <div className="space-y-2">
+        {people.map((person) => (
+          <ClientCard key={person.id} person={person} onOpen={() => onOpen(person.id)} />
+        ))}
+        <p className="pt-2 text-center text-xs text-stone-400">نهاية القائمة</p>
+        <p className="text-center text-xs text-stone-400">اطلعت على الكل</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      <ClientGroup title="لديهم مشاريع نشطة" people={grouped.active} onOpen={onOpen} />
-      <ClientGroup title="بدون مشاريع نشطة" people={grouped.idle} onOpen={onOpen} />
+      <ClientGroup title="لديهم مشاريع نشطة" people={sections.active} onOpen={onOpen} />
+      <ClientGroup title="بدون مشاريع نشطة" people={sections.idle} onOpen={onOpen} />
       <p className="text-center text-xs text-stone-400">نهاية القائمة</p>
+      <p className="text-center text-xs text-stone-400">اطلعت على الكل</p>
     </div>
   );
 }
@@ -687,15 +956,19 @@ function ClientCard({ person, onOpen }: { person: Person; onOpen: () => void }) 
         <div>
           <p className="font-bold">{person.name}</p>
           <p className="mt-1 text-sm text-stone-500">
-            {projects.length.toLocaleString("ar-EG")} مشروع
-            {activeCount > 0 ? " · نشط" : ""}
+            {projects.length.toLocaleString("ar-EG")} مشروع، {activeCount.toLocaleString("ar-EG")} نشط
           </p>
         </div>
-        <span className="text-stone-400">‹</span>
+        <div className="flex items-center gap-2">
+          <span
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${activeCount > 0 ? "bg-emerald-100 text-emerald-800" : "bg-stone-100 text-stone-500"}`}
+          >
+            <span className={`h-1.5 w-1.5 rounded-full ${activeCount > 0 ? "bg-emerald-600" : "bg-stone-400"}`} />
+            {activeCount > 0 ? "نشط" : "غير نشط"}
+          </span>
+          <span className="text-stone-400">‹</span>
+        </div>
       </div>
-      <span className="inline-flex rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">
-        الحالة لسه مش شغالة
-      </span>
       {over ? (
         <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm font-bold text-rose-800">
           يوجد مشروع مصروفاته تتجاوز المستلم

@@ -8,6 +8,7 @@ export type Person = {
   active?: boolean;
   specialties?: string[];
   attachmentDataUrl?: string;
+  createdAt?: string;
 };
 
 export type ProjectStatus =
