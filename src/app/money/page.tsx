@@ -7,7 +7,7 @@ import { readCompressedImage } from "@/lib/images";
 import { projectMoney, supervisionDueOf } from "@/lib/logic";
 import { dayToIso } from "@/lib/money";
 import { useStore } from "@/lib/store";
-import type { PaymentClass } from "@/lib/types";
+import type { PaymentClass, Person } from "@/lib/types";
 
 type Step = "choose" | "payment" | "expense";
 
@@ -20,7 +20,7 @@ function nowInput() {
 function MoneyInner() {
   const params = useSearchParams();
   const router = useRouter();
-  const { state, addTransaction, updateTransaction, addCategory, renameCategory, deleteCategory } = useStore();
+  const { state, addTransaction, updateTransaction, addCategory, renameCategory, deleteCategory, addSupplier } = useStore();
   const presetProject = params.get("projectId") || "";
   const kindParam = params.get("kind");
   const txId = params.get("tx") || "";
@@ -41,6 +41,9 @@ function MoneyInner() {
   const [storage, setStorage] = useState("");
   const [busy, setBusy] = useState(false);
   const [manageCats, setManageCats] = useState(false);
+  const [supplierPick, setSupplierPick] = useState(false);
+  const [newSupplier, setNewSupplier] = useState(false);
+  const [supplierQuery, setSupplierQuery] = useState("");
   const [newCatName, setNewCatName] = useState("");
   const [renameDrafts, setRenameDrafts] = useState<Record<string, string>>({});
   const [attachSheet, setAttachSheet] = useState(false);
@@ -51,6 +54,7 @@ function MoneyInner() {
 
   const project = state.projects.find((item) => item.id === projectId);
   const existing = state.transactions.find((item) => item.id === txId);
+  const selectedSupplier = state.suppliers.find((item) => item.id === supplierId);
 
   useEffect(() => {
     if (!existing) return;
@@ -340,21 +344,24 @@ function MoneyInner() {
               />
             </label>
 
-            <label className="block text-sm font-semibold">
-              المورد
-              <select
-                className="input mt-1"
-                value={supplierId}
-                onChange={(e) => setSupplierId(e.target.value)}
+            <div>
+              <p className="mb-1 text-sm font-semibold">
+                المورد <span className="font-normal text-stone-400">اختياري</span>
+              </p>
+              <button
+                type="button"
+                className="input flex w-full items-center justify-between text-right"
+                onClick={() => {
+                  setSupplierQuery("");
+                  setSupplierPick(true);
+                }}
               >
-                <option value="">بدون مورد</option>
-                {state.suppliers.map((person) => (
-                  <option key={person.id} value={person.id}>
-                    {person.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+                <span className={selectedSupplier ? "font-bold" : "text-stone-400"}>
+                  {selectedSupplier?.name || "بدون مورد"}
+                </span>
+                <span className="text-stone-400">▾</span>
+              </button>
+            </div>
 
             <label className="block text-sm font-semibold">
               ملاحظات <span className="font-normal text-stone-400">اختياري</span>
@@ -426,6 +433,38 @@ function MoneyInner() {
             onRename={(id) => renameCategory(id, renameDrafts[id] ?? "")}
             onDelete={deleteCategory}
             onClose={() => setManageCats(false)}
+          />
+        ) : null}
+
+        {supplierPick && !newSupplier ? (
+          <SupplierPicker
+            query={supplierQuery}
+            onQuery={setSupplierQuery}
+            suppliers={state.suppliers}
+            selectedId={supplierId}
+            onPick={(id) => {
+              setSupplierId(id);
+              setSupplierPick(false);
+            }}
+            onAdd={() => setNewSupplier(true)}
+            onClose={() => setSupplierPick(false)}
+          />
+        ) : null}
+
+        {newSupplier ? (
+          <NewSupplierForm
+            categories={state.categories.map((item) => item.name)}
+            onManageCategories={() => {
+              setRenameDrafts(Object.fromEntries(state.categories.map((c) => [c.id, c.name])));
+              setManageCats(true);
+            }}
+            onCancel={() => setNewSupplier(false)}
+            onSave={(input) => {
+              const id = addSupplier(input);
+              setSupplierId(id);
+              setNewSupplier(false);
+              setSupplierPick(false);
+            }}
           />
         ) : null}
 
@@ -726,7 +765,7 @@ function CategoryManager({
   const [editingId, setEditingId] = useState("");
   const available = SUGGESTED_CATEGORIES.filter((name) => !categories.some((item) => item.name === name));
   return (
-    <div className="fixed inset-0 z-[80] overflow-auto bg-[var(--bg)]">
+    <div className="fixed inset-0 z-[100] overflow-auto bg-[var(--bg)]">
       <div className="mx-auto min-h-dvh max-w-lg px-4 py-6">
         <h2 className="mb-4 text-center text-lg font-black">إدارة البنود</h2>
         <div className="flex gap-2">
@@ -817,6 +856,315 @@ function CategoryManager({
           إضافة الكل
         </button>
         <button type="button" className="btn btn-primary mt-3 w-full" onClick={onClose}>تم</button>
+      </div>
+    </div>
+  );
+}
+
+function digitsOnly(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function SupplierPicker({
+  query,
+  onQuery,
+  suppliers,
+  selectedId,
+  onPick,
+  onAdd,
+  onClose,
+}: {
+  query: string;
+  onQuery: (value: string) => void;
+  suppliers: Person[];
+  selectedId: string;
+  onPick: (id: string) => void;
+  onAdd: () => void;
+  onClose: () => void;
+}) {
+  const visible = suppliers.filter((person) => {
+    const needle = query.trim();
+    if (!needle) return true;
+    return [person.name, person.phone || "", person.email || ""].join(" ").includes(needle);
+  });
+  return (
+    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/40">
+      <button type="button" className="absolute inset-0" aria-label="إغلاق" onClick={onClose} />
+      <div className="relative max-h-[85dvh] w-full max-w-lg overflow-auto rounded-t-3xl bg-[var(--bg)] p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <button type="button" className="text-sm font-bold text-stone-500" onClick={onClose}>
+            رجوع
+          </button>
+          <p className="font-black">اختر المورد</p>
+          <span className="w-10" />
+        </div>
+        <input
+          className="input mb-3"
+          placeholder="بحث بالاسم أو الهاتف..."
+          value={query}
+          onChange={(event) => onQuery(event.target.value)}
+        />
+        <button
+          type="button"
+          className="mb-3 flex w-full items-center gap-3 rounded-2xl border border-dashed border-[var(--brand)] bg-white px-3 py-3 text-right"
+          onClick={onAdd}
+        >
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-[var(--brand)] text-xl text-white">+</span>
+          <span className="font-bold text-[var(--brand)]">إضافة مورد جديد</span>
+        </button>
+        <button
+          type="button"
+          className={`card mb-2 flex w-full items-center justify-between ${selectedId === "" ? "border-[var(--brand)] bg-[#f3e6dc]" : ""}`}
+          onClick={() => onPick("")}
+        >
+          <span
+            className={`h-5 w-5 rounded-full border ${selectedId === "" ? "border-[var(--brand)] bg-[var(--brand)]" : "border-stone-300"}`}
+          />
+          <span className="font-bold">بدون مورد</span>
+        </button>
+        {visible.length === 0 ? <p className="card text-center text-stone-500">لا يوجد موردين</p> : null}
+        {visible.map((person) => (
+          <button
+            key={person.id}
+            type="button"
+            className={`card mb-2 flex w-full items-center justify-between gap-3 text-right ${
+              selectedId === person.id ? "border-[var(--brand)] bg-[#f3e6dc]" : ""
+            }`}
+            onClick={() => onPick(person.id)}
+          >
+            <span
+              className={`h-5 w-5 shrink-0 rounded-full border ${
+                selectedId === person.id ? "border-[var(--brand)] bg-[var(--brand)]" : "border-stone-300"
+              }`}
+            />
+            <span className="min-w-0 flex-1">
+              <span className="block font-bold">{person.name}</span>
+              {person.phone ? (
+                <span className="mt-1 block text-sm text-stone-500" dir="ltr">
+                  {person.phone}
+                </span>
+              ) : null}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function NewSupplierForm({
+  categories,
+  onManageCategories,
+  onCancel,
+  onSave,
+}: {
+  categories: string[];
+  onManageCategories: () => void;
+  onCancel: () => void;
+  onSave: (input: {
+    name: string;
+    phone?: string;
+    email?: string;
+    notes?: string;
+    specialties?: string[];
+    attachmentDataUrl?: string;
+  }) => void;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [notes, setNotes] = useState("");
+  const [specialties, setSpecialties] = useState<string[]>([]);
+  const [attachment, setAttachment] = useState("");
+  const [notice, setNotice] = useState("");
+  const available = categories.filter((item) => !specialties.includes(item));
+
+  async function fromContacts() {
+    const nav = navigator as Navigator & {
+      contacts?: {
+        select: (
+          props: string[],
+          opts: { multiple: boolean },
+        ) => Promise<Array<{ name?: string[]; tel?: string[]; email?: string[] }>>;
+      };
+    };
+    if (!nav.contacts?.select) return;
+    try {
+      const picked = await nav.contacts.select(["name", "tel", "email"], { multiple: false });
+      const first = picked[0];
+      if (!first) return;
+      if (first.name?.[0]) setName(first.name[0]);
+      if (first.tel?.[0]) {
+        const digits = digitsOnly(first.tel[0]);
+        setPhone(digits.startsWith("20") ? digits.slice(2) : digits);
+      }
+      if (first.email?.[0]) setEmail(first.email[0]);
+    } catch {
+      return;
+    }
+  }
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!name.trim()) {
+      setNotice("اكتب اسم المورد");
+      return;
+    }
+    if (!digitsOnly(phone)) {
+      setNotice("اكتب الهاتف");
+      return;
+    }
+    onSave({
+      name,
+      phone: `+20 ${digitsOnly(phone)}`,
+      email,
+      notes,
+      specialties,
+      attachmentDataUrl: attachment || undefined,
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-[90] overflow-auto bg-[var(--bg)]">
+      <div className="mx-auto min-h-dvh max-w-lg px-4 py-4">
+        <div className="mb-4 flex items-center justify-between">
+          <button type="button" className="text-sm font-bold text-stone-500" onClick={onCancel}>
+            رجوع
+          </button>
+          <p className="font-black">مورد جديد</p>
+          <span className="w-10" />
+        </div>
+        <form onSubmit={submit} className="space-y-3" noValidate>
+          {notice ? <p className="text-sm font-bold text-rose-700">{notice}</p> : null}
+          <button type="button" className="btn btn-secondary w-full" onClick={() => void fromContacts()}>
+            استيراد من جهات الاتصال
+          </button>
+          <label className="block space-y-1">
+            <span className="flex items-center justify-between text-sm font-bold">
+              <span>اسم المورد</span>
+              <span className="font-normal text-stone-400">مطلوب</span>
+            </span>
+            <input className="input" value={name} onChange={(event) => setName(event.target.value)} />
+          </label>
+          <div className="space-y-1">
+            <span className="flex items-center justify-between text-sm font-bold">
+              <span>الهاتف</span>
+              <span className="font-normal text-stone-400">مطلوب</span>
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="shrink-0 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-bold">مصر +20</span>
+              <input
+                className="input min-w-0 flex-1"
+                dir="ltr"
+                inputMode="tel"
+                value={phone}
+                onChange={(event) => setPhone(digitsOnly(event.target.value))}
+              />
+            </div>
+          </div>
+          <label className="block space-y-1">
+            <span className="flex items-center justify-between text-sm font-bold">
+              <span>البريد</span>
+              <span className="font-normal text-stone-400">اختياري</span>
+            </span>
+            <input
+              className="input"
+              dir="ltr"
+              inputMode="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+          </label>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex flex-1 items-center justify-between text-sm font-bold">
+                <span>البنود التي يوردها</span>
+                <span className="font-normal text-stone-400">اختياري</span>
+              </span>
+              <button type="button" className="shrink-0 text-sm font-bold text-[var(--brand)]" onClick={onManageCategories}>
+                إدارة البنود
+              </button>
+            </div>
+            {categories.length === 0 ? (
+              <p className="rounded-2xl border border-dashed border-stone-300 bg-white px-3 py-4 text-center text-sm text-stone-500">
+                لا توجد بنود
+              </p>
+            ) : (
+              <>
+                {available.length > 0 ? (
+                  <select
+                    className="input"
+                    value=""
+                    aria-label="البنود التي يوردها"
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      if (!value || specialties.includes(value)) return;
+                      setSpecialties((prev) => [...prev, value]);
+                    }}
+                  >
+                    <option value="">اختار بند</option>
+                    {available.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+                {specialties.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {specialties.map((item) => (
+                      <button
+                        key={item}
+                        type="button"
+                        className="rounded-full bg-stone-100 px-3 py-1 text-sm font-bold"
+                        onClick={() => setSpecialties((prev) => prev.filter((name) => name !== item))}
+                      >
+                        {item} ×
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            )}
+          </div>
+          <label className="block space-y-1">
+            <span className="flex items-center justify-between text-sm font-bold">
+              <span>ملاحظات</span>
+              <span className="font-normal text-stone-400">اختياري</span>
+            </span>
+            <textarea className="input min-h-24" value={notes} onChange={(event) => setNotes(event.target.value)} />
+          </label>
+          <div className="space-y-2">
+            <span className="flex items-center justify-between text-sm font-bold">
+              <span>المرفق</span>
+              <span className="font-normal text-stone-400">اختياري</span>
+            </span>
+            <button type="button" className="card w-full text-sm text-stone-500" onClick={() => fileRef.current?.click()}>
+              اضغط لالتقاط أو رفع ملف
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*,.pdf,application/pdf"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = () => setAttachment(String(reader.result || ""));
+                reader.readAsDataURL(file);
+              }}
+            />
+            {attachment.startsWith("data:image") ? <img src={attachment} alt="" className="max-h-40 rounded-xl" /> : null}
+          </div>
+          <button type="submit" className="btn btn-primary w-full">
+            حفظ المورد
+          </button>
+          <button type="button" className="btn btn-secondary w-full" onClick={onCancel}>
+            إلغاء
+          </button>
+        </form>
       </div>
     </div>
   );
