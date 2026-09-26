@@ -27,6 +27,9 @@ export default function SettingsPage() {
           <p className="text-stone-500">
             كلمة سر التجربة: <span className="font-mono">{DEMO_PASSWORD}</span>
           </p>
+          <p className="text-stone-500">
+            البذرة فيها مشاريع وحركات ومعرض ودليل كامل عشان تجرب كل المسارات. لو البيانات قديمة، اضغط «إعادة بيانات التجربة».
+          </p>
         </div>
 
         <form onSubmit={onAdd} className="card space-y-3">
