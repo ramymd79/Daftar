@@ -100,6 +100,7 @@ type StoreApi = {
     specialties?: string[];
     attachmentDataUrl?: string;
   }) => string;
+  deletePerson: (kind: "clients" | "contractors" | "suppliers", id: string) => void;
   updatePerson: (
     kind: "clients" | "contractors" | "suppliers",
     id: string,
@@ -374,6 +375,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           suppliers: [person, ...prev.suppliers],
         }));
         return id;
+      },
+      deletePerson: (kind, id) => {
+        setState((prev) => ({
+          ...prev,
+          [kind]: prev[kind].filter((person) => person.id !== id),
+        }));
       },
       addTransaction: (input) => {
         const id = input.id || newId("tx");

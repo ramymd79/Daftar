@@ -720,7 +720,7 @@ function PersonDetail({
   onBack: () => void;
   onSummary: () => void;
 }) {
-  const { state, updatePerson } = useStore();
+  const { state, updatePerson, deletePerson } = useStore();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(person.name);
   const [phone, setPhone] = useState(person.phone || "");
@@ -728,6 +728,7 @@ function PersonDetail({
   const [notes, setNotes] = useState(person.notes || "");
   const [notice, setNotice] = useState("");
   const [blockOpen, setBlockOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const text = copy[kind];
   const showEmail = kind !== "contractors";
   const trades = kind === "clients" ? [] : personTrades(state, kind, person);
@@ -779,9 +780,10 @@ function PersonDetail({
             <button
               type="button"
               aria-label="حذف"
-              className="rounded-xl p-2 text-stone-700"
+              className="rounded-xl p-2 text-rose-700"
               onClick={() => {
                 if (linked.length) setBlockOpen(true);
+                else setDeleteOpen(true);
               }}
             >
               <TrashIcon />
@@ -958,6 +960,35 @@ function PersonDetail({
             <button type="button" className="btn btn-primary w-full" onClick={() => setBlockOpen(false)}>
               فهمت
             </button>
+          </div>
+        </div>
+      ) : null}
+      {deleteOpen ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm space-y-3 rounded-3xl bg-white p-4 text-center">
+            <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-rose-100 text-rose-700">
+              <TrashIcon />
+            </div>
+            <p className="text-lg font-black">حذف المقاول؟</p>
+            <p className="text-sm leading-7 text-stone-600">
+              سيتم حذف &apos;{person.name}&apos; من دليل الشركة. لا توجد مشاريع مرتبطة بهذا المقاول حاليًا.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                className="btn bg-rose-700 text-white"
+                onClick={() => {
+                  deletePerson("contractors", person.id);
+                  setDeleteOpen(false);
+                  onBack();
+                }}
+              >
+                حذف
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={() => setDeleteOpen(false)}>
+                إلغاء
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
