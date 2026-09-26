@@ -191,10 +191,11 @@ function ContractorTab({
     const related = expensesForPerson(state, "contractorId", selected.contractorId, projectId);
     const paid = related.reduce((sum, tx) => sum + expenseBreakdown(tx).total, 0);
     const tags = [
-      ...new Set(
-        related.map((tx) => state.categories.find((item) => item.id === tx.categoryId)?.name).filter(Boolean),
-      ),
-    ];
+      ...new Set([
+        ...(person?.specialties || []),
+        ...related.map((tx) => state.categories.find((item) => item.id === tx.categoryId)?.name).filter(Boolean),
+      ]),
+    ] as string[];
     if (editing) {
       return (
         <form
@@ -297,10 +298,11 @@ function ContractorTab({
         const paid = related.reduce((sum, tx) => sum + expenseBreakdown(tx).total, 0);
         const ratio = agreement.amount > 0 ? Math.min(100, (paid / agreement.amount) * 100) : 0;
         const tags = [
-          ...new Set(
-            related.map((tx) => state.categories.find((item) => item.id === tx.categoryId)?.name).filter(Boolean),
-          ),
-        ];
+          ...new Set([
+            ...(person?.specialties || []),
+            ...related.map((tx) => state.categories.find((item) => item.id === tx.categoryId)?.name).filter(Boolean),
+          ]),
+        ] as string[];
         const waiting = agreement.amount > 0 ? paid < agreement.amount : paid === 0;
         return (
           <button key={agreement.id} type="button" className="card w-full text-right" onClick={() => onSelect(agreement.id)}>

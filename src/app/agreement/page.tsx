@@ -1,10 +1,16 @@
 "use client";
 
-import { FormEvent, Suspense, useState } from "react";
+import { FormEvent, Suspense, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { AppShell } from "@/components/AppShell";
 import { readCompressedImage } from "@/lib/images";
+import { parseUserNumber } from "@/lib/money";
 import { useStore } from "@/lib/store";
+
+function digitsOnly(value: string) {
+  return value.replace(/\D/g, "");
+}
 
 function AgreementInner() {
   const params = useSearchParams();
@@ -13,123 +19,354 @@ function AgreementInner() {
   const projectId = params.get("projectId") || "";
   const project = state.projects.find((item) => item.id === projectId);
   const [contractorId, setContractorId] = useState("");
-  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
-  const [attachment, setAttachment] = useState<string | undefined>();
+  const [attachment, setAttachment] = useState("");
+  const [notice, setNotice] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+  const backHref = project
+    ? `/project/?id=${encodeURIComponent(project.id)}&tab=contractors`
+    : "/projects/";
 
   if (!project) {
     return (
-      <div className="mx-auto max-w-lg p-6">
+      <AppShell title="إضافة مقاول للمشروع">
         <p className="card">اختار المشروع الأول.</p>
         <Link href="/projects/" className="btn btn-secondary mt-3 inline-flex">
           المشاريع
         </Link>
-      </div>
+      </AppShell>
     );
   }
 
-  function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!project || Number(amount) <= 0) return;
-    let cid = contractorId;
-    if (!cid && newName.trim()) cid = addContractor({ name: newName });
-    if (!cid) return;
+  if (creating) {
+    return (
+      <NewContractorForm
+        onCancel={() => setCreating(false)}
+        onCreated={(id) => {
+          setContractorId(id);
+          setCreating(false);
+        }}
+      />
+    );
+  }
+
+  function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    if (!project) return;
+    if (!contractorId) {
+      setNotice("اختار المقاول");
+      return;
+    }
     addAgreement({
       projectId: project.id,
-      contractorId: cid,
-      amount: Number(amount),
+      contractorId,
+      amount: parseUserNumber(amount) || 0,
       notes,
-      attachmentDataUrl: attachment,
+      attachmentDataUrl: attachment || undefined,
     });
-    router.push(`/project/?id=${encodeURIComponent(project.id)}&tab=contractors`);
+    router.push(backHref);
   }
 
   return (
-    <div className="mx-auto min-h-dvh max-w-lg bg-[var(--bg)] px-4 py-8">
-      <p className="text-center text-sm font-bold text-[var(--brand)]">دفتر</p>
-      <h1 className="mt-6 text-center text-2xl font-black leading-snug">
-        اتفقت مع مقاول على المشروع؟
-      </h1>
-      <p className="mt-2 text-center text-sm text-stone-600">سجّل الاتفاق ع المشروع</p>
-      <p className="mt-1 text-center text-sm text-stone-500">{project.name}</p>
-
-      <form onSubmit={onSubmit} className="mt-6 space-y-3">
-        <label className="block text-sm font-semibold">
-          المقاول
+    <AppShell title="إضافة مقاول للمشروع">
+      <form onSubmit={onSubmit} className="space-y-3" noValidate>
+        {notice ? <p className="text-sm font-bold text-rose-700">{notice}</p> : null}
+        <label className="block space-y-1">
+          <span className="flex items-center justify-between text-sm font-bold">
+            <span>المشروع</span>
+            <span className="font-normal text-stone-400">متقفل</span>
+          </span>
+          <input className="input" value={project.name} disabled />
+        </label>
+        <div className="space-y-2">
+          <span className="flex items-center justify-between text-sm font-bold">
+            <span>المقاول</span>
+            <span className="font-normal text-stone-400">مطلوب</span>
+          </span>
           <select
-            className="input mt-1"
+            className="input"
             value={contractorId}
-            onChange={(e) => setContractorId(e.target.value)}
+            aria-label="المقاول"
+            onChange={(event) => {
+              setContractorId(event.target.value);
+              setNotice("");
+            }}
           >
-            <option value="">مقاول جديد</option>
+            <option value="">اختار المقاول...</option>
             {state.contractors.map((person) => (
               <option key={person.id} value={person.id}>
                 {person.name}
               </option>
             ))}
           </select>
-        </label>
-        {!contractorId ? (
+          <button type="button" className="text-sm font-bold text-[var(--brand)]" onClick={() => setCreating(true)}>
+            إضافة مقاول جديد
+          </button>
+        </div>
+        <label className="block space-y-1">
+          <span className="flex items-center justify-between text-sm font-bold">
+            <span>المبلغ المتفق عليه</span>
+            <span className="font-normal text-stone-400">اختياري</span>
+          </span>
           <input
             className="input"
-            placeholder="اسم المقاول"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            required
-          />
-        ) : null}
-        <label className="block text-sm font-semibold">
-          المبلغ المتفق عليه
-          <input
-            className="input mt-1"
-            type="number"
             inputMode="numeric"
-            min="1"
             placeholder="أدخل المبلغ"
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            required
+            onChange={(event) => setAmount(event.target.value)}
           />
         </label>
-        <label className="block text-sm font-semibold">
-          ملاحظات <span className="font-normal text-stone-400">اختياري</span>
+        <label className="block space-y-1">
+          <span className="flex items-center justify-between text-sm font-bold">
+            <span>ملاحظات</span>
+            <span className="font-normal text-stone-400">اختياري</span>
+          </span>
           <textarea
-            className="input mt-1 min-h-24"
+            className="input min-h-24"
             placeholder="ملاحظات خاصة بهذا المشروع"
             value={notes}
-            onChange={(e) => setNotes(e.target.value)}
+            onChange={(event) => setNotes(event.target.value)}
           />
         </label>
-        <div>
-          <p className="mb-1 text-sm font-semibold">
-            المرفقات <span className="font-normal text-stone-400">اختياري</span>
-          </p>
-          <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-stone-300 bg-white px-4 py-8 text-sm text-stone-600">
-            {attachment ? "الصورة اتضافت" : "صورة الاتفاق"}
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                setAttachment(await readCompressedImage(file));
-              }}
-            />
-          </label>
+        <div className="space-y-2">
+          <span className="flex items-center justify-between text-sm font-bold">
+            <span>المرفقات</span>
+            <span className="font-normal text-stone-400">اختياري</span>
+          </span>
+          <button type="button" className="card w-full text-sm text-stone-500" onClick={() => fileRef.current?.click()}>
+            {attachment ? "المرفق اتضاف" : "اضغط لالتقاط أو رفع ملف"}
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*,.pdf,application/pdf"
+            className="hidden"
+            onChange={async (event) => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              if (file.type.startsWith("image/")) setAttachment(await readCompressedImage(file));
+              else {
+                const reader = new FileReader();
+                reader.onload = () => setAttachment(String(reader.result || ""));
+                reader.readAsDataURL(file);
+              }
+            }}
+          />
+          {attachment.startsWith("data:image") ? <img src={attachment} alt="" className="max-h-40 rounded-xl" /> : null}
         </div>
         <button type="submit" className="btn btn-primary w-full">
-          حفظ الاتفاق
+          إضافة للمشروع
         </button>
-        <Link
-          href={`/project/?id=${encodeURIComponent(project.id)}&tab=contractors`}
-          className="btn btn-secondary w-full"
-        >
+        <Link href={backHref} className="btn btn-secondary w-full">
           إلغاء
         </Link>
       </form>
-    </div>
+    </AppShell>
+  );
+}
+
+function NewContractorForm({
+  onCancel,
+  onCreated,
+}: {
+  onCancel: () => void;
+  onCreated: (id: string) => void;
+}) {
+  const { state, addContractor } = useStore();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [extraOpen, setExtraOpen] = useState(false);
+  const [extraPhone, setExtraPhone] = useState("");
+  const [specialties, setSpecialties] = useState<string[]>([]);
+  const [notes, setNotes] = useState("");
+  const [attachment, setAttachment] = useState("");
+  const [notice, setNotice] = useState("");
+  const available = state.categories.map((item) => item.name).filter((item) => !specialties.includes(item));
+
+  async function fromContacts() {
+    const nav = navigator as Navigator & {
+      contacts?: {
+        select: (
+          props: string[],
+          opts: { multiple: boolean },
+        ) => Promise<Array<{ name?: string[]; tel?: string[] }>>;
+      };
+    };
+    if (!nav.contacts?.select) return;
+    try {
+      const picked = await nav.contacts.select(["name", "tel"], { multiple: false });
+      const first = picked[0];
+      if (!first) return;
+      if (first.name?.[0]) setName(first.name[0]);
+      if (first.tel?.[0]) {
+        const digits = digitsOnly(first.tel[0]);
+        setPhone(digits.startsWith("20") ? digits.slice(2) : digits);
+      }
+    } catch {
+      return;
+    }
+  }
+
+  function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    if (!name.trim()) {
+      setNotice("اكتب اسم المقاول");
+      return;
+    }
+    if (!digitsOnly(phone)) {
+      setNotice("اكتب الهاتف");
+      return;
+    }
+    if (!specialties.length) {
+      setNotice("اختار بند");
+      return;
+    }
+    const id = addContractor({
+      name,
+      phone: `+20 ${digitsOnly(phone)}`,
+      extraPhone: extraOpen && digitsOnly(extraPhone) ? `+20 ${digitsOnly(extraPhone)}` : undefined,
+      notes,
+      specialties,
+      attachmentDataUrl: attachment || undefined,
+    });
+    onCreated(id);
+  }
+
+  return (
+    <AppShell title="مقاول جديد">
+      <form onSubmit={onSubmit} className="space-y-3" noValidate>
+        {notice ? <p className="text-sm font-bold text-rose-700">{notice}</p> : null}
+        <button type="button" className="btn btn-secondary w-full" onClick={() => void fromContacts()}>
+          تحديث من جهة اتصال
+        </button>
+        <label className="block space-y-1">
+          <span className="flex items-center justify-between text-sm font-bold">
+            <span>اسم المقاول</span>
+            <span className="font-normal text-stone-400">مطلوب</span>
+          </span>
+          <input className="input" value={name} onChange={(event) => setName(event.target.value)} />
+        </label>
+        <div className="space-y-1">
+          <span className="flex items-center justify-between text-sm font-bold">
+            <span>الهاتف الأساسي</span>
+            <span className="font-normal text-stone-400">مطلوب</span>
+          </span>
+          <div className="flex items-center gap-2">
+            <span className="shrink-0 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-bold">مصر +20</span>
+            <input
+              className="input min-w-0 flex-1"
+              dir="ltr"
+              inputMode="tel"
+              value={phone}
+              onChange={(event) => setPhone(digitsOnly(event.target.value))}
+            />
+          </div>
+        </div>
+        {extraOpen ? (
+          <div className="flex items-center gap-2">
+            <span className="shrink-0 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-bold">مصر +20</span>
+            <input
+              className="input min-w-0 flex-1"
+              dir="ltr"
+              inputMode="tel"
+              aria-label="رقم هاتف آخر"
+              value={extraPhone}
+              onChange={(event) => setExtraPhone(digitsOnly(event.target.value))}
+            />
+          </div>
+        ) : (
+          <button type="button" className="text-sm font-bold text-[var(--brand)]" onClick={() => setExtraOpen(true)}>
+            إضافة رقم هاتف آخر
+          </button>
+        )}
+        <div className="space-y-2">
+          <span className="flex items-center justify-between text-sm font-bold">
+            <span>البنود</span>
+            <span className="font-normal text-stone-400">مطلوب</span>
+          </span>
+          {available.length > 0 ? (
+            <select
+              className="input"
+              value=""
+              aria-label="البنود"
+              onChange={(event) => {
+                const value = event.target.value;
+                if (!value || specialties.includes(value)) return;
+                setSpecialties((prev) => [...prev, value]);
+              }}
+            >
+              <option value="">اختار بند</option>
+              {available.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          ) : null}
+          {specialties.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {specialties.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className="rounded-full bg-stone-100 px-3 py-1 text-sm font-bold"
+                  onClick={() => setSpecialties((prev) => prev.filter((name) => name !== item))}
+                >
+                  {item} ×
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+        <label className="block space-y-1">
+          <span className="flex items-center justify-between text-sm font-bold">
+            <span>ملاحظات</span>
+            <span className="font-normal text-stone-400">اختياري</span>
+          </span>
+          <textarea
+            className="input min-h-24"
+            placeholder="ملاحظات تشغيلية تظهر في ملف المقاول..."
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+          />
+        </label>
+        <div className="space-y-2">
+          <span className="flex items-center justify-between text-sm font-bold">
+            <span>مرفقات المقاول</span>
+            <span className="font-normal text-stone-400">اختياري</span>
+          </span>
+          <button type="button" className="card w-full text-sm text-stone-500" onClick={() => fileRef.current?.click()}>
+            اضغط لالتقاط أو رفع ملف
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*,.pdf,application/pdf"
+            className="hidden"
+            onChange={async (event) => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              if (file.type.startsWith("image/")) setAttachment(await readCompressedImage(file));
+              else {
+                const reader = new FileReader();
+                reader.onload = () => setAttachment(String(reader.result || ""));
+                reader.readAsDataURL(file);
+              }
+            }}
+          />
+          {attachment.startsWith("data:image") ? <img src={attachment} alt="" className="max-h-40 rounded-xl" /> : null}
+        </div>
+        <button type="submit" className="btn btn-primary w-full">
+          حفظ المقاول
+        </button>
+        <button type="button" className="btn btn-secondary w-full" onClick={onCancel}>
+          إلغاء
+        </button>
+      </form>
+    </AppShell>
   );
 }
 
